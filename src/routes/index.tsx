@@ -11,7 +11,7 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Dharmik — Wear Your Dharma | Premium Sanatan Streetwear" },
-      { name: "description", content: "Modern streetwear inspired by Sanatan heritage. Hand-illustrated tees, hoodies, jackets and wall art celebrating Mahadev, Krishna, Ram, Hanuman and Sanskrit culture." },
+      { name: "description", content: "Modern streetwear inspired by Sanatan heritage. Hand-illustrated tees, hoodies, and jackets celebrating Mahadev, Krishna, Ram, Hanuman and Sanskrit culture." },
       { property: "og:title", content: "Dharmik — Wear Your Dharma" },
       { property: "og:description", content: "Modern premium streetwear inspired by Sanatan heritage." },
     ],

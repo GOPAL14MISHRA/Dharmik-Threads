@@ -1,7 +1,9 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { authService } from "@/services/authService";
 import { orderService } from "@/services/orderService";
+import { useCart } from "@/stores/cart";
+import { inr } from "@/lib/format";
 import type { Order, User } from "@/lib/types";
 import { toast } from "sonner";
 import {
@@ -15,19 +17,21 @@ import {
   Copy,
   ChevronRight,
   Sparkles,
+  Heart,
 } from "lucide-react";
-import { AuthVisualPanel } from "@/components/auth/AuthVisualPanel";
+import hero1 from "@/assets/hero-1.jpg";
 
 export const Route = createFileRoute("/account")({
   head: () => ({ meta: [{ title: "Account — Dharmik" }] }),
   component: AccountPage,
 });
 
-type TabKey = "profile" | "orders" | "coupons" | "settings" | "support";
+type TabKey = "profile" | "orders" | "saved" | "coupons" | "settings" | "support";
 
 const NAV: { key: TabKey; label: string; icon: typeof UserIcon }[] = [
   { key: "profile", label: "Account", icon: UserIcon },
   { key: "orders", label: "Orders", icon: Package },
+  { key: "saved", label: "Saved", icon: Heart },
   { key: "coupons", label: "Coupons", icon: Ticket },
   { key: "settings", label: "Settings", icon: Settings },
   { key: "support", label: "Support", icon: LifeBuoy },
@@ -41,6 +45,7 @@ const COUPONS = [
 
 function AccountPage() {
   const router = useRouter();
+  const cartItems = useCart((s) => s.items);
   const [user, setUser] = useState<User | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [tab, setTab] = useState<TabKey>("profile");
@@ -73,9 +78,32 @@ function AccountPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = mode === "login"
-        ? await authService.login(email, password)
-        : await authService.signup(name, email, password, phone);
+      let res;
+      if (mode === "login") {
+        res = await authService.login(email, password);
+      } else {
+        const cleanEmail = email.trim().toLowerCase();
+        if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(cleanEmail)) {
+          toast.error("Email address must be a valid email containing @gmail.com");
+          setLoading(false);
+          return;
+        }
+
+        let cleanPhone = phone.replace(/\D/g, "");
+        if (cleanPhone.length === 12 && cleanPhone.startsWith("91")) {
+          cleanPhone = cleanPhone.slice(2);
+        } else if (cleanPhone.length === 11 && cleanPhone.startsWith("0")) {
+          cleanPhone = cleanPhone.slice(1);
+        }
+
+        if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+          toast.error("Mobile number must be exactly 10 digits, starting with 6, 7, 8, or 9");
+          setLoading(false);
+          return;
+        }
+
+        res = await authService.signup(name, cleanEmail, password, cleanPhone);
+      }
       setUser(res.user);
       const orders = await orderService.getOrders(res.user.id);
       setOrders(orders);
@@ -157,28 +185,165 @@ function AccountPage() {
   }
 
   if (!user) {
-    if (mode === "signup" || mode === "login") {
-      return (
-        <div className="min-h-[70vh] flex items-center justify-between py-20 px-6 lg:px-20 gap-10 lg:gap-20 relative overflow-hidden">
-          {/* Ambient brand glow */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute left-0 top-1/4 w-96 h-96 bg-gradient-to-br from-[color:var(--saffron)]/15 via-[color:var(--gold)]/10 to-transparent rounded-full blur-3xl" />
-            <div className="absolute right-1/3 bottom-1/4 w-80 h-80 bg-gradient-to-tr from-[color:var(--saffron)]/10 to-transparent rounded-full blur-3xl" />
+    return (
+      <div className="min-h-screen w-full grid lg:grid-cols-2 lg:h-screen lg:overflow-hidden bg-[color:var(--ivory)] relative">
+        <style>{`
+          @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          @keyframes pulse-slow {
+            0%, 100% { opacity: 0.12; }
+            50% { opacity: 0.25; }
+          }
+          .animate-spin-slow {
+            animation: spin-slow 180s linear infinite;
+          }
+          .animate-pulse-slow {
+            animation: pulse-slow 12s ease-in-out infinite;
+          }
+        `}</style>
+
+        {/* Left Column: Bhagwa and Yellow Gradient Background with Spiritual Elements */}
+        <div className="relative hidden lg:flex flex-col justify-between overflow-hidden w-full h-full bg-gradient-to-br from-[#E65100] via-[#FF6D00] via-[#FFA000] to-[#FFD54F] p-16">
+          {/* Glowing orbs for depth */}
+          <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-white/20 rounded-full blur-[120px] pointer-events-none animate-pulse-slow" />
+          <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-[#FFD54F]/30 rounded-full blur-[100px] pointer-events-none animate-pulse-slow" />
+
+          {/* Large subtle Sanskrit shloka watermark in the center background */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none opacity-[0.04]">
+            <span className="font-serif text-[10vw] font-bold tracking-widest text-[color:var(--ink)]">
+              धर्म
+            </span>
           </div>
 
-          <AuthVisualPanel />
+          {/* Rotating Mandala SVG */}
+          <svg
+            className="absolute w-[150%] h-[150%] -right-1/3 -bottom-1/3 text-[color:var(--ink)] opacity-[0.06] pointer-events-none animate-spin-slow"
+            viewBox="0 0 100 100"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="0.1"
+          >
+            <circle cx="50" cy="50" r="49" strokeDasharray="0.5 0.5" />
+            <circle cx="50" cy="50" r="46" />
+            <circle cx="50" cy="50" r="43" strokeDasharray="2 1" />
+            <circle cx="50" cy="50" r="39" />
+            <circle cx="50" cy="50" r="35" strokeDasharray="1 1" />
+            <circle cx="50" cy="50" r="30" />
+            <circle cx="50" cy="50" r="25" strokeDasharray="1 0.5" />
+            <circle cx="50" cy="50" r="20" />
+            <circle cx="50" cy="50" r="15" />
+            <circle cx="50" cy="50" r="10" />
+            <circle cx="50" cy="50" r="5" />
+            {Array.from({ length: 48 }).map((_, i) => {
+              const angle = (i * 360) / 48;
+              return (
+                <line
+                  key={i}
+                  x1="50"
+                  y1="50"
+                  x2={50 + 46 * Math.cos((angle * Math.PI) / 180)}
+                  y2={50 + 46 * Math.sin((angle * Math.PI) / 180)}
+                  strokeWidth="0.05"
+                  opacity="0.7"
+                />
+              );
+            })}
+            {Array.from({ length: 24 }).map((_, i) => {
+              const angle = (i * 360) / 24;
+              return (
+                <circle
+                  key={i}
+                  cx={50 + 35 * Math.cos((angle * Math.PI) / 180)}
+                  cy={50 + 35 * Math.sin((angle * Math.PI) / 180)}
+                  r="0.8"
+                  fill="currentColor"
+                  opacity="0.8"
+                />
+              );
+            })}
+            {Array.from({ length: 16 }).map((_, i) => {
+              const angle = (i * 360) / 16;
+              return (
+                <circle
+                  key={i}
+                  cx={50 + 25 * Math.cos((angle * Math.PI) / 180)}
+                  cy={50 + 25 * Math.sin((angle * Math.PI) / 180)}
+                  r="0.6"
+                  fill="currentColor"
+                  opacity="0.8"
+                />
+              );
+            })}
+          </svg>
+
+          {/* Top: Brand Name Only */}
+          <div className="relative z-10">
+            <span className="font-display text-3xl tracking-[0.15em] text-[color:var(--ink)] font-bold">
+              Dharmik<span className="text-white">.</span>
+            </span>
+          </div>
+
+          {/* Bottom: Brand Name, Shloka and Description */}
+          <div className="relative z-10 space-y-6">
+            <div className="inline-block border-l-2 border-[color:var(--ink)]/40 pl-4 py-1">
+              <p className="font-serif italic text-lg tracking-widest text-[color:var(--ink)]/80 font-medium">
+                ॥ धर्मो रक्षति रक्षितः ॥
+              </p>
+              <p className="text-[10px] uppercase tracking-widest text-[color:var(--ink)]/60 mt-1">
+                Dharma protects those who protect it
+              </p>
+            </div>
+            <div>
+              <h2 className="font-display text-5xl xl:text-6xl text-[color:var(--ink)] font-semibold tracking-tight leading-[1.05]">
+                Dharmik<span className="text-white">.</span>
+              </h2>
+              <p className="mt-4 text-sm text-[color:var(--ink)]/80 max-w-sm font-medium leading-relaxed">
+                Hand-illustrated tees &amp; sacred streetwear — crafted with intention for the modern devotee.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Form Container */}
+        <div className="flex items-center justify-center p-4 lg:p-6 relative overflow-hidden bg-gradient-to-tr from-orange-50/20 via-stone-50/40 to-yellow-50/20 lg:h-screen lg:overflow-hidden">
+          {/* Ambient background colors */}
+          <div className="absolute inset-0 pointer-events-none opacity-40">
+            <div className="absolute left-1/4 top-1/4 w-80 h-80 bg-[#FF6D00]/10 rounded-full blur-[100px]" />
+            <div className="absolute right-1/4 bottom-1/4 w-80 h-80 bg-[#FFD54F]/10 rounded-full blur-[100px]" />
+          </div>
 
           {/* Auth Card */}
-          <div className="w-full max-w-md bg-white/90 backdrop-blur p-8 rounded-lg shadow-glow border border-[color:var(--border)] relative z-10 shrink-0">
-            <h2 className="font-display text-xl text-center">{mode === "signup" ? "Create your account" : "Sign in"}</h2>
-            <p className="text-sm text-muted-foreground text-center mt-2">{mode === "signup" ? "Welcome! Please fill in the details to get started." : "Welcome back! Please sign in to continue."}</p>
+          <div className="w-full max-w-[400px] bg-white/75 backdrop-blur-lg p-5 sm:p-6 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.06)] border border-white/50 relative z-10 transition-all duration-300 hover:shadow-[0_16px_48px_rgba(255,107,0,0.1)]">
+            {/* Elegant corner accents like a sacred chest/frame */}
+            <div className="absolute top-3 left-3 w-3 h-3 border-t border-l border-[color:var(--saffron)]/30 rounded-tl" />
+            <div className="absolute top-3 right-3 w-3 h-3 border-t border-r border-[color:var(--saffron)]/30 rounded-tr" />
+            <div className="absolute bottom-3 left-3 w-3 h-3 border-b border-l border-[color:var(--saffron)]/30 rounded-bl" />
+            <div className="absolute bottom-3 right-3 w-3 h-3 border-b border-r border-[color:var(--saffron)]/30 rounded-br" />
 
-            <div className="mt-6 grid gap-3">
+            {/* Home Link Inline with brand tag */}
+            <div className="flex items-center justify-between mb-3.5">
+              <button
+                type="button"
+                onClick={() => router.navigate({ to: "/" })}
+                className="text-[9px] uppercase tracking-widest text-muted-foreground hover:text-[color:var(--saffron)] flex items-center gap-1 transition-colors font-bold"
+              >
+                ← Home
+              </button>
+              <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold tracking-[0.1em]">Dharmik.</span>
+            </div>
+
+            <h2 className="font-display text-xl text-center text-[color:var(--ink)] font-semibold tracking-wide">
+              {mode === "signup" ? "Create account" : "Welcome back"}
+            </h2>
+
+            <div className="mt-4 grid gap-3">
               <button
                 type="button"
                 onClick={loginWithGoogle}
                 disabled={googleLoading || loading}
-                className="w-full bg-white border border-[color:var(--border)] text-[color:var(--ink)] py-3 text-sm rounded-md hover:bg-gray-50 flex items-center justify-center gap-3"
+                className="w-full bg-white border border-[color:var(--border)] text-[color:var(--ink)] py-2 text-[9px] uppercase tracking-widest font-bold rounded shadow-sm hover:bg-stone-50 hover:border-stone-300 flex items-center justify-center gap-2.5 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:pointer-events-none"
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24">
                   <path fill="#EA4335" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -189,81 +354,48 @@ function AccountPage() {
                 <span>{googleLoading ? 'Signing in...' : 'Sign in with Google'}</span>
               </button>
 
-              <div className="relative flex items-center gap-4 mt-2">
+              <div className="relative flex items-center gap-3 py-0.5">
                 <div className="flex-1 border-t border-[color:var(--border)]" />
-                <span className="text-[11px] text-muted-foreground uppercase tracking-widest mx-3">or</span>
+                <span className="text-[8px] text-muted-foreground uppercase tracking-widest font-bold">or</span>
                 <div className="flex-1 border-t border-[color:var(--border)]" />
               </div>
 
-              <form onSubmit={submit} className="space-y-4 mt-4">
+              <form onSubmit={submit} className="space-y-2.5 mt-0.5">
+                {mode === "signup" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input label="Name" value={name} onChange={setName} required disabled={loading} />
+                    <Input label="Mobile" value={phone} onChange={setPhone} type="tel" disabled={loading} />
+                  </div>
+                )}
                 <Input label="Email address" value={email} onChange={setEmail} type="email" required disabled={loading} />
                 <Input label="Password" value={password} onChange={setPassword} type="password" required disabled={loading} />
-                <button type="submit" disabled={loading} aria-busy={loading} className="w-full bg-[color:var(--ink)] text-[color:var(--ivory)] py-3 text-sm rounded-md hover:bg-[color:var(--saffron)] transition-colors disabled:opacity-60">{mode === "signup" ? "Create account" : "Sign in"}</button>
+                
+                <button
+                  type="submit"
+                  disabled={loading}
+                  aria-busy={loading}
+                  className="w-full bg-[color:var(--ink)] text-[color:var(--ivory)] py-2.5 text-[9px] uppercase tracking-[0.2em] font-bold rounded shadow-md hover:bg-[color:var(--saffron)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:pointer-events-none mt-1.5"
+                >
+                  {mode === "signup" ? "Create account" : "Sign in"}
+                </button>
               </form>
 
-              <div className="text-center text-sm text-muted-foreground mt-4">
+              <div className="text-center text-[9px] uppercase tracking-widest mt-2 font-semibold">
                 {mode === "signup" ? (
-                  <>Already have an account? <button onClick={() => setMode('login')} className="text-[color:var(--ink)] hover:underline">Sign in</button></>
+                  <>
+                    <span className="text-muted-foreground">Already have an account? </span>
+                    <button type="button" onClick={() => setMode('login')} className="text-[color:var(--ink)] hover:text-[color:var(--saffron)] transition-colors font-bold underline decoration-2 underline-offset-4">Sign in</button>
+                  </>
                 ) : (
-                  <>New here? <button onClick={() => setMode('signup')} className="text-[color:var(--ink)] hover:underline">Create an account</button></>
+                  <>
+                    <span className="text-muted-foreground">New here? </span>
+                    <button type="button" onClick={() => setMode('signup')} className="text-[color:var(--ink)] hover:text-[color:var(--saffron)] transition-colors font-bold underline decoration-2 underline-offset-4">Create account</button>
+                  </>
                 )}
               </div>
             </div>
-
           </div>
         </div>
-      );
-    }
-
-    return (
-      <div className="container-luxe py-24 grid lg:grid-cols-[38%_62%] gap-16 max-w-5xl">
-        <div>
-          <p className="eyebrow text-[color:var(--saffron)]">{mode === "login" ? "Welcome back" : "Join the community"}</p>
-          <h1 className="font-display text-5xl mt-3">{mode === "login" ? "Sign in." : "Create account."}</h1>
-          <p className="text-muted-foreground mt-4">{mode === "login" ? "Continue your dharma." : "Begin your journey with Dharmik."}</p>
-        </div>
-        <form onSubmit={submit} className="space-y-5 max-h-[75vh] overflow-y-auto pr-2 hide-scrollbar bg-white/70 backdrop-blur p-8 rounded-lg shadow-glow border border-[color:var(--border)] lg:w-[95%]">
-          {mode === "signup" && (
-            <>
-              <Input label="Name" value={name} onChange={setName} required disabled={loading} />
-              <Input label="Mobile Number" value={phone} onChange={setPhone} type="tel" disabled={loading} />
-            </>
-          )}
-          <Input label="Email" value={email} onChange={setEmail} type="email" required disabled={loading} />
-          <Input label="Password" value={password} onChange={setPassword} type="password" required disabled={loading} />
-          <button type="submit" disabled={loading} aria-busy={loading} className="w-full bg-[color:var(--ink)] text-[color:var(--ivory)] py-4 text-xs uppercase tracking-[0.25em] font-medium hover:bg-[color:var(--saffron)] transition-colors disabled:opacity-60">
-            {mode === "login" ? "Sign in" : "Create account"}
-          </button>
-          
-          {mode === "login" && (
-            <>
-              <div className="relative flex items-center gap-4">
-                <div className="flex-1 border-t border-[color:var(--border)]" />
-                <span className="text-[11px] text-muted-foreground uppercase tracking-widest">Or</span>
-                <div className="flex-1 border-t border-[color:var(--border)]" />
-              </div>
-              
-              <button
-                type="button"
-                onClick={loginWithGoogle}
-                disabled={googleLoading || loading}
-                className="w-full bg-white border border-[color:var(--border)] text-[color:var(--ink)] py-4 text-xs uppercase tracking-[0.25em] font-medium hover:bg-gray-50 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                <svg className="size-5" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                </svg>
-                {googleLoading ? "Signing in..." : "Sign in with Google"}
-              </button>
-            </>
-          )}
-          
-          <button type="button" onClick={() => setMode(mode === "login" ? "signup" : "login")} className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground">
-            {mode === "login" ? "New here? Create an account →" : "Have an account? Sign in →"}
-          </button>
-        </form>
       </div>
     );
   }
@@ -285,9 +417,9 @@ function AccountPage() {
             </div>
           </div>
           <div className="flex gap-3">
-            <Stat label="Orders" value={String(orders.length)} />
-            <Stat label="Saved" value={String(user.addresses.length)} />
-            <Stat label="Coupons" value={String(COUPONS.length)} />
+            <Stat label="Orders" value={String(orders.length)} onClick={() => setTab("orders")} />
+            <Stat label="Saved" value={String(cartItems.length)} onClick={() => setTab("saved")} />
+            <Stat label="Coupons" value={String(COUPONS.length)} onClick={() => setTab("coupons")} />
           </div>
         </div>
       </div>
@@ -329,6 +461,7 @@ function AccountPage() {
         <main className="min-w-0 space-y-8">
           {tab === "profile" && <ProfilePanel user={user} />}
           {tab === "orders" && <OrdersPanel orders={orders} expanded />}
+          {tab === "saved" && <SavedPanel />}
           {tab === "coupons" && <CouponsPanel />}
           {tab === "settings" && <SettingsPanel user={user} />}
           {tab === "support" && <SupportPanel />}
@@ -521,12 +654,16 @@ function SectionHead({ title, eyebrow, hint }: { title: string; eyebrow?: string
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, onClick }: { label: string; value: string; onClick?: () => void }) {
   return (
-    <div className="border border-white/15 px-5 py-3 min-w-[88px] text-center bg-white/[0.04]">
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      className={`border border-white/15 px-5 py-3 min-w-[88px] text-center bg-white/[0.04] transition-colors ${onClick ? "hover:bg-white/[0.08] cursor-pointer" : ""}`}
+    >
       <p className="font-display text-2xl text-[color:var(--saffron)]">{value}</p>
       <p className="text-[10px] uppercase tracking-widest text-white/60 mt-0.5">{label}</p>
-    </div>
+    </button>
   );
 }
 
@@ -542,16 +679,20 @@ function DetailTile({ label, value }: { label: string; value: string }) {
 function OrderCard({ order, compact }: { order: Order; compact?: boolean }) {
   const date = new Date(order.placedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   return (
-    <div className="border border-[color:var(--border)] bg-white/60 p-4 hover:border-[color:var(--saffron)] transition-colors">
+    <Link
+      to="/track"
+      search={{ id: order.orderId } as any}
+      className="block text-left w-full border border-[color:var(--border)] bg-white/60 p-4 hover:border-[color:var(--saffron)] transition-all duration-300 transform hover:-translate-y-0.5 shadow-sm hover:shadow-md cursor-pointer hover:no-underline"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">#{order.orderId}</p>
-          <p className="font-medium mt-1 truncate">
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">#{order.orderId}</p>
+          <p className="font-medium mt-1 truncate text-foreground">
             {order.items.length} item{order.items.length > 1 ? "s" : ""} · ₹{order.total.toLocaleString("en-IN")}
           </p>
           <p className="text-xs text-muted-foreground mt-1">{date}</p>
         </div>
-        <span className="text-[10px] uppercase tracking-widest bg-[color:var(--saffron)]/15 text-[color:var(--saffron)] px-2 py-1">
+        <span className="text-[10px] uppercase tracking-widest bg-[color:var(--saffron)]/15 text-[color:var(--saffron)] px-2 py-1 font-semibold">
           {order.orderStatus}
         </span>
       </div>
@@ -562,7 +703,7 @@ function OrderCard({ order, compact }: { order: Order; compact?: boolean }) {
           ))}
         </div>
       )}
-    </div>
+    </Link>
   );
 }
 
@@ -604,16 +745,87 @@ function ContactTile({ title, sub, href }: { title: string; sub: string; href: s
 
 function Input({ label, value, onChange, type = "text", required, disabled }: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; disabled?: boolean }) {
   return (
-    <label className="block">
-      <span className="text-xs uppercase tracking-widest text-muted-foreground">{label}</span>
+    <label className="block text-left">
+      <span className="text-[9px] uppercase tracking-widest text-stone-500 font-bold">{label}</span>
       <input
         type={type}
         value={value}
         required={required}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full bg-transparent border-b border-[color:var(--border)] py-2.5 focus:outline-none focus:border-[color:var(--saffron)] disabled:opacity-60"
+        className="mt-0.5 w-full bg-transparent border-b-2 border-stone-200 py-1 focus:outline-none focus:border-[color:var(--saffron)] transition-all duration-300 disabled:opacity-60 font-medium text-sm text-[color:var(--ink)]"
       />
     </label>
+  );
+}
+
+function SavedPanel() {
+  const items = useCart((s) => s.items);
+  const remove = useCart((s) => s.remove);
+  const router = useRouter();
+
+  const total = items.reduce((a, x) => a + x.price * x.quantity, 0);
+
+  return (
+    <>
+      <SectionHead title="Saved Cart" eyebrow="Saved" hint={`${items.length} item${items.length === 1 ? "" : "s"}`} />
+      {items.length === 0 ? (
+        <div className="border border-dashed border-[color:var(--border)] p-12 text-center bg-white/60">
+          <Heart className="h-8 w-8 mx-auto text-[color:var(--saffron)] opacity-75" />
+          <p className="font-display text-2xl mt-4">Your saved cart is empty</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Add items to your bag to save them here.
+          </p>
+          <button
+            onClick={() => router.navigate({ to: "/shop" })}
+            className="mt-6 bg-[color:var(--ink)] text-[color:var(--ivory)] px-6 py-2.5 text-xs uppercase tracking-widest hover:bg-[color:var(--saffron)] transition-colors cursor-pointer"
+          >
+            Shop now
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="divide-y divide-[color:var(--border)] border border-[color:var(--border)] bg-white/60">
+            {items.map((it) => (
+              <div key={it.productId + it.size + it.color} className="flex gap-4 p-5 items-center">
+                <img
+                  src={it.image}
+                  alt={it.title}
+                  className="h-20 w-20 object-cover border border-[color:var(--border)]"
+                />
+                <div className="flex-1 min-w-0 font-sans">
+                  <p className="font-medium truncate">{it.title}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Size: {it.size} · Color: {it.color} · Qty: {it.quantity}
+                  </p>
+                  <button
+                    onClick={() => remove(it.productId, it.variantId, it.size)}
+                    className="text-[11px] uppercase tracking-widest text-muted-foreground hover:text-red-600 transition-colors mt-2 cursor-pointer font-bold"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold">{inr(it.price * it.quantity)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-6 border border-[color:var(--border)] bg-white/60 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-widest">Total value</p>
+              <p className="text-xl font-bold mt-1">{inr(total)}</p>
+            </div>
+            <button
+              onClick={() => router.navigate({ to: "/checkout" })}
+              className="bg-[color:var(--ink)] text-[color:var(--ivory)] px-8 py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[color:var(--saffron)] transition-colors text-center font-semibold cursor-pointer"
+            >
+              Proceed to checkout
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

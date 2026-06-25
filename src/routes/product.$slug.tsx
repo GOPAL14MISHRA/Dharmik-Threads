@@ -86,41 +86,18 @@ function ProductView({ product, related }: { product: Product; related: Product[
 
   const categoryLabel    = useMemo(() => product.category.replace("-", " "), [product.category]);
   const collectionLabel  = useMemo(() => product.collection.replace("-", " "), [product.collection]);
-  const currentImages    = activeVariant.images;
-  const currentStock     = activeSize?.stock ?? 0;
-  const isOutOfStock     = currentStock === 0;
 
-  // ── Colour-based image filter / overlay ─────────────────────────────────
-  const { filterStyle, overlayElement } = useMemo(() => {
-    const name = activeVariant.color.name.toLowerCase();
-    const hex  = activeVariant.color.hex;
-    const isFirst = activeVariant.variantId === product.variants[0]?.variantId;
+  // Check if the selected color variant is real (has matching images).
+  // The first variant is always real (it contains the default photos).
+  const hasRealColor = activeVariant.isRealColor || activeVariant.variantId === product.variants[0]?.variantId;
 
-    let filterStyle = "";
-    let overlayElement = null;
+  const currentImages    = hasRealColor ? activeVariant.images : product.variants[0].images;
+  const currentStock     = hasRealColor ? (activeSize?.stock ?? 0) : 0;
+  const isOutOfStock     = !hasRealColor || currentStock === 0;
 
-    if (!isFirst) {
-      if (name.includes("black") || name.includes("charcoal") || name.includes("midnight")) {
-        filterStyle = "brightness(0.35) contrast(1.1) grayscale(0.85)";
-      } else if (name.includes("saffron") || name.includes("orange")) {
-        filterStyle = "sepia(0.3) saturate(1.25) hue-rotate(-10deg)";
-        overlayElement = (
-          <div
-            className="absolute inset-0 pointer-events-none mix-blend-color opacity-55 transition-all duration-300"
-            style={{ backgroundColor: hex }}
-          />
-        );
-      } else {
-        overlayElement = (
-          <div
-            className="absolute inset-0 pointer-events-none mix-blend-color opacity-50 transition-all duration-300"
-            style={{ backgroundColor: hex }}
-          />
-        );
-      }
-    }
-    return { filterStyle, overlayElement };
-  }, [activeVariant, product.variants]);
+  // We do NOT add any filter or background overlay as requested:
+  const filterStyle = "";
+  const overlayElement = null;
 
   return (
     <>
@@ -276,7 +253,7 @@ function ProductView({ product, related }: { product: Product; related: Product[
             </p>
             <div className="flex flex-wrap gap-2">
               {activeVariant.sizes.map((s) => {
-                const outOfStock = s.stock === 0;
+                const outOfStock = !hasRealColor || s.stock === 0;
                 return (
                   <button
                     key={s.sku}

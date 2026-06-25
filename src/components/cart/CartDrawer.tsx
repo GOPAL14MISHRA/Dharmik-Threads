@@ -9,22 +9,7 @@ import { inr } from "@/lib/format";
 import { cartService } from "@/services/cartService";
 
 function getCartItemImageStyleAndOverlay(color: string) {
-  const name = color.toLowerCase();
-  let filterStyle = "";
-  let overlayElement = null;
-
-  if (name.includes("black") || name.includes("charcoal") || name.includes("midnight") || name.includes("ink")) {
-    filterStyle = "brightness(0.35) contrast(1.1) grayscale(0.85)";
-  } else if (name.includes("saffron") || name.includes("orange")) {
-    filterStyle = "sepia(0.3) saturate(1.25) hue-rotate(-10deg)";
-    overlayElement = (
-      <div
-        className="absolute inset-0 pointer-events-none mix-blend-color opacity-55"
-        style={{ backgroundColor: "#FF6B00" }}
-      />
-    );
-  }
-  return { filterStyle, overlayElement };
+  return { filterStyle: "", overlayElement: null };
 }
 
 export function CartDrawer() {
@@ -107,13 +92,13 @@ export function CartDrawer() {
                           <p className="text-xs text-muted-foreground mt-0.5">{it.size} · {it.color}</p>
                           <div className="mt-3 flex items-center justify-between">
                             <div className="flex items-center border border-[color:var(--border)]">
-                              <button aria-label="Decrease" onClick={() => setQty(it.productId, it.size, it.color, it.quantity - 1)} className="p-1.5 hover:bg-muted"><Minus className="size-3" /></button>
+                              <button aria-label="Decrease" onClick={() => setQty(it.productId, it.variantId, it.size, it.quantity - 1)} className="p-1.5 hover:bg-muted"><Minus className="size-3" /></button>
                               <span className="px-3 text-sm">{it.quantity}</span>
-                              <button aria-label="Increase" onClick={() => setQty(it.productId, it.size, it.color, it.quantity + 1)} className="p-1.5 hover:bg-muted"><Plus className="size-3" /></button>
+                              <button aria-label="Increase" onClick={() => setQty(it.productId, it.variantId, it.size, it.quantity + 1)} className="p-1.5 hover:bg-muted"><Plus className="size-3" /></button>
                             </div>
                             <p className="font-semibold text-sm">{inr(it.price * it.quantity)}</p>
                           </div>
-                          <button onClick={() => remove(it.productId, it.size, it.color)} className="text-[11px] uppercase tracking-widest text-muted-foreground hover:text-[color:var(--saffron)] mt-2">Remove</button>
+                          <button onClick={() => remove(it.productId, it.variantId, it.size)} className="text-[11px] uppercase tracking-widest text-muted-foreground hover:text-[color:var(--saffron)] mt-2">Remove</button>
                         </div>
                       </div>
                     );

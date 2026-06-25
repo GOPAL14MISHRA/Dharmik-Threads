@@ -4,16 +4,20 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useLocation,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase/auth";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { CartDrawer } from "@/components/cart/CartDrawer";
+import { NotificationDrawer } from "@/components/layout/NotificationDrawer";
 import { Toaster } from "@/components/ui/sonner";
 import { SplashScreen } from "@/components/layout/SplashScreen";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
@@ -111,18 +115,33 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const location = useLocation();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+
+  const isHideLayout = (location.pathname === "/account" && !currentUser) || location.pathname.startsWith("/admin");
 
   return (
     <QueryClientProvider client={queryClient}>
       <SplashScreen />
-      <Header />
+      {!isHideLayout && <Header />}
       <main>
         <Outlet />
       </main>
-      <Footer />
+      {!isHideLayout && <Footer />}
       <CartDrawer />
+      <NotificationDrawer />
       <Toaster position="top-center" richColors />
-      <WhatsAppButton />
+      {!isHideLayout && <WhatsAppButton />}
     </QueryClientProvider>
   );
 }

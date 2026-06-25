@@ -12,10 +12,21 @@ export function Footer() {
     e.preventDefault();
     if (!email) return;
     setLoading(true);
-    await userService.subscribeNewsletter(email);
-    setLoading(false);
-    setEmail("");
-    toast.success("Welcome to the Dharma Community.");
+    try {
+      await userService.subscribeNewsletter(email);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dharmik_subscribed_email", email.trim().toLowerCase());
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new CustomEvent("dharmik_subscription_change"));
+      }
+      setEmail("");
+      toast.success("Welcome to the Dharma Community.");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to subscribe");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const cols = [
@@ -26,7 +37,6 @@ export function Footer() {
         { to: "/collections", label: "Collections" },
         { to: "/category/tshirts", label: "Oversized Tees" },
         { to: "/category/hoodies", label: "Hoodies" },
-        { to: "/category/wall-art", label: "Wall Art" },
       ],
     },
     {
@@ -42,7 +52,7 @@ export function Footer() {
       title: "Company",
       links: [
         { to: "/story", label: "Our Story" },
-        { to: "/journal", label: "Journal" },
+        { to: "/journal", label: "Blog" },
         { to: "/privacy", label: "Privacy Policy" },
         { to: "/terms", label: "Terms of Service" },
       ],
@@ -111,7 +121,7 @@ export function Footer() {
               <ul className="mt-5 space-y-3 text-sm text-white/70">
                 {c.links.map((l) => (
                   <li key={l.to}>
-                    <Link to={l.to} className="hover:text-[color:var(--saffron)] transition-colors">
+                    <Link to={l.to as any} className="hover:text-[color:var(--saffron)] transition-colors">
                       {l.label}
                     </Link>
                   </li>

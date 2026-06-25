@@ -19,10 +19,23 @@ export const Route = createFileRoute("/wishlist")({
 
 function WishlistPage() {
   const ids = useWishlist((s) => s.ids);
+  const toggle = useWishlist((s) => s.toggle);
   const [items, setItems] = useState<Product[]>([]);
   useEffect(() => {
-    productService.getProducts().then((all) => setItems(all.filter((p) => ids.includes(p.id))));
-  }, [ids]);
+    productService.getProducts().then((all) => {
+      const activeProducts = all.filter((p) => ids.includes(p.id));
+      setItems(activeProducts);
+      
+      // Clean up any IDs in the store that no longer exist in the database
+      const activeIds = activeProducts.map((p) => p.id);
+      const invalidIds = ids.filter((id) => !activeIds.includes(id));
+      if (invalidIds.length > 0) {
+        invalidIds.forEach((id) => {
+          toggle(id);
+        });
+      }
+    });
+  }, [ids, toggle]);
 
   return (
     <div className="container-luxe py-16 md:py-24">

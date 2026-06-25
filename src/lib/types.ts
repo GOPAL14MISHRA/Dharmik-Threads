@@ -9,8 +9,7 @@ export type Category =
   | "polos"
   | "jackets"
   | "caps"
-  | "accessories"
-  | "wall-art";
+  | "accessories";
 
 export type Collection =
   | "mahadev"
@@ -19,7 +18,6 @@ export type Collection =
   | "hanuman"
   | "bhagavad-gita"
   | "sanskrit"
-  | "temple-architecture"
   | "durga";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,6 +41,7 @@ export interface ProductVariant {
   color: Color;
   images: string[];   // per-variant image set
   sizes: SizeOption[];
+  isRealColor?: boolean;
 }
 
 export interface Review {
@@ -124,6 +123,7 @@ export interface Address {
   state: string;
   pincode: string;
   phone: string;
+  email?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,9 +136,9 @@ export interface User {
   email: string;
   phone?: string;
   addresses: Address[];
-  joinedAt: string;
-  orders: number;
-  spent: number;
+  joinedAt?: string;
+  orders?: number;
+  spent?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -189,6 +189,7 @@ export interface Order {
   tax: number;
   total: number;
   createdAt: string;
+  placedAt: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -3,7 +3,6 @@ import shiva from "@/assets/product-shiva.jpg";
 import krishna from "@/assets/product-krishna.jpg";
 import hanuman from "@/assets/product-hanuman.jpg";
 import ram from "@/assets/product-ram.jpg";
-import poster from "@/assets/product-poster.jpg";
 import cap from "@/assets/product-cap.jpg";
 import hero1 from "@/assets/hero-1.jpg";
 import hero2 from "@/assets/hero-2.jpg";
@@ -42,6 +41,7 @@ export const products: Product[] = [
           { size: "XL",  price: 1499, stock: 8,  sku: "MHTEE-IVY-XL" },
           { size: "XXL", price: 1599, stock: 4,  sku: "MHTEE-IVY-XXL" },
         ],
+        isRealColor: true,
       },
       {
         variantId: "p1-saffron",
@@ -53,6 +53,7 @@ export const products: Product[] = [
           { size: "L",  price: 1499, stock: 9,  sku: "MHTEE-SAF-L" },
           { size: "XL", price: 1499, stock: 5,  sku: "MHTEE-SAF-XL" },
         ],
+        isRealColor: true,
       },
       {
         variantId: "p1-black",
@@ -65,6 +66,7 @@ export const products: Product[] = [
           { size: "XL",  price: 1499, stock: 0,  sku: "MHTEE-BLK-XL" },
           { size: "XXL", price: 1599, stock: 2,  sku: "MHTEE-BLK-XXL" },
         ],
+        isRealColor: true,
       },
     ],
     rating: 4.9,
@@ -101,6 +103,7 @@ export const products: Product[] = [
           { size: "XL",  price: 3299, stock: 4,  sku: "KRHD-BLK-XL" },
           { size: "XXL", price: 3499, stock: 2,  sku: "KRHD-BLK-XXL" },
         ],
+        isRealColor: true,
       },
       {
         variantId: "p2-charcoal",
@@ -147,6 +150,7 @@ export const products: Product[] = [
           { size: "XL",  price: 2499, stock: 6,  sku: "HNSW-SAF-XL" },
           { size: "XXL", price: 2599, stock: 2,  sku: "HNSW-SAF-XXL" },
         ],
+        isRealColor: true,
       },
       {
         variantId: "p3-ivory",
@@ -189,6 +193,7 @@ export const products: Product[] = [
           { size: "XL",  price: 5699, stock: 2,  sku: "RMBMB-MID-XL" },
           { size: "XXL", price: 5699, stock: 0,  sku: "RMBMB-MID-XXL" },
         ],
+        isRealColor: true,
       },
     ],
     rating: 5.0,
@@ -220,6 +225,7 @@ export const products: Product[] = [
           { size: "XL",  price: 2299, stock: 4,  sku: "DGSW-IVY-XL" },
           { size: "XXL", price: 2399, stock: 0,  sku: "DGSW-IVY-XXL" },
         ],
+        isRealColor: true,
       },
     ],
     rating: 4.9,
@@ -246,6 +252,7 @@ export const products: Product[] = [
         sizes: [
           { size: "One Size", price: 899, stock: 88, sku: "OMCAP-BLK-OS" },
         ],
+        isRealColor: true,
       },
       {
         variantId: "p6-saffron",
@@ -263,32 +270,6 @@ export const products: Product[] = [
     createdAt: "2026-03-20",
   },
 
-  {
-    id: "p7",
-    slug: "shikhara-temple-poster",
-    title: "Shikhara Temple Wall Art",
-    description:
-      "Museum-grade fine-art print on 250 GSM matte cotton paper. Hand-illustrated North Indian shikhara in saffron-gold gradient.",
-    category: "wall-art",
-    collection: "temple-architecture",
-    brand: "DharmikThreads",
-    variants: [
-      {
-        variantId: "p7-saffron",
-        color: { name: "Saffron", hex: "#FF6B00" },
-        images: [poster, hero2, krishna],
-        sizes: [
-          { size: "A3", price: 1299, stock: 50, sku: "SHKPST-SAF-A3" },
-          { size: "A2", price: 1799, stock: 40, sku: "SHKPST-SAF-A2" },
-          { size: "A1", price: 2499, stock: 30, sku: "SHKPST-SAF-A1" },
-        ],
-      },
-    ],
-    rating: 4.9,
-    reviewCount: 76,
-    reviews: [baseReview(1, "Beautiful print quality", "Looks incredible framed.")],
-    createdAt: "2026-04-01",
-  },
 
   {
     id: "p8",
@@ -338,7 +319,6 @@ export const collections = [
   { slug: "hanuman", name: "Hanuman", tagline: "Bajrang Bali", image: hanuman },
   { slug: "bhagavad-gita", name: "Bhagavad Gita", tagline: "Karm Yog", image: shiva },
   { slug: "sanskrit", name: "Sanskrit Typography", tagline: "Sacred Script", image: cap },
-  { slug: "temple-architecture", name: "Temple Architecture", tagline: "Stone & Spirit", image: poster },
 ] as const;
 
 export const categories = [
@@ -349,5 +329,4 @@ export const categories = [
   { slug: "jackets", name: "Jackets" },
   { slug: "caps", name: "Caps" },
   { slug: "accessories", name: "Accessories" },
-  { slug: "wall-art", name: "Wall Art" },
 ] as const;

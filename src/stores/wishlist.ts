@@ -17,6 +17,15 @@ export const useWishlist = create<WishlistState>()(
       has: (id) => get().ids.includes(id),
       clear: () => set({ ids: [] }),
     }),
-    { name: "dharma-wishlist" }
+    {
+      name: "dharma-wishlist",
+      onRehydrateStorage: () => (state) => {
+        if (state && Array.isArray(state.ids)) {
+          if (state.ids.includes("1")) {
+            state.ids = state.ids.filter((x) => x !== "1");
+          }
+        }
+      },
+    }
   )
 );

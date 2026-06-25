@@ -5,7 +5,6 @@ import krishna from "@/assets/product-krishna.jpg";
 import hanuman from "@/assets/product-hanuman.jpg";
 import ram from "@/assets/product-ram.jpg";
 import cap from "@/assets/product-cap.jpg";
-import poster from "@/assets/product-poster.jpg";
 
 const items = [
   { slug: "tshirts", name: "Oversized Tees", image: shiva, span: "md:col-span-2 md:row-span-2" },
@@ -13,7 +12,6 @@ const items = [
   { slug: "sweatshirts", name: "Sweatshirts", image: hanuman, span: "" },
   { slug: "jackets", name: "Jackets", image: ram, span: "" },
   { slug: "caps", name: "Caps", image: cap, span: "" },
-  { slug: "wall-art", name: "Wall Art", image: poster, span: "md:col-span-2" },
 ];
 
 export function CategoryGrid() {

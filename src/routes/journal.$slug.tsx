@@ -1,7 +1,9 @@
 import { createFileRoute, notFound, Link, useRouter } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { Clock, Tag, ChevronRight, ArrowLeft, ArrowRight } from "lucide-react";
-import { getPost, getRelatedPosts } from "@/lib/blogData";
+import { getPost, getRelatedPosts, type BlogPost } from "@/lib/blogData";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase/firestore";
 import hero1 from "@/assets/hero-1.jpg";
 import hero2 from "@/assets/hero-2.jpg";
 import poster from "@/assets/product-poster.jpg";
@@ -24,8 +26,33 @@ const IMG_MAP: Record<string, string> = {
 };
 
 export const Route = createFileRoute("/journal/$slug")({
-  loader: ({ params }) => {
-    const post = getPost(params.slug);
+  loader: async ({ params }) => {
+    let post = getPost(params.slug);
+    if (!post) {
+      try {
+        const blogRef = doc(db, "blogs", params.slug);
+        const blogSnap = await getDoc(blogRef);
+        if (blogSnap.exists()) {
+          const data = blogSnap.data();
+          post = {
+            slug: params.slug,
+            title: data.title,
+            excerpt: data.excerpt || "",
+            tag: data.category || "Culture",
+            tagSlug: (data.category || "Culture").toLowerCase(),
+            date: data.date || "June 20, 2026",
+            readTime: data.readTime || "5 min read",
+            featured: false,
+            author: data.author || "Dharmik Atelier",
+            imgKey: data.imgKey || "hero1",
+            content: data.content || [],
+            relatedSlugs: [],
+          };
+        }
+      } catch (err) {
+        console.error("Failed to load blog from Firestore:", err);
+      }
+    }
     if (!post) throw notFound();
     const related = getRelatedPosts(post);
     return { post, related };

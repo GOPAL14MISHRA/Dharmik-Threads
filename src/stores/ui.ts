@@ -5,6 +5,8 @@ interface UIState {
   setCartOpen: (v: boolean) => void;
   searchOpen: boolean;
   setSearchOpen: (v: boolean) => void;
+  notificationsOpen: boolean;
+  setNotificationsOpen: (v: boolean) => void;
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -12,4 +14,6 @@ export const useUI = create<UIState>((set) => ({
   setCartOpen: (v) => set({ cartOpen: v }),
   searchOpen: false,
   setSearchOpen: (v) => set({ searchOpen: v }),
+  notificationsOpen: false,
+  setNotificationsOpen: (v) => set({ notificationsOpen: v }),
 }));

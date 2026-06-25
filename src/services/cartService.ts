@@ -27,15 +27,19 @@ export const cartService = {
     const couponQuery = query(collection(db, "coupons"), where("code", "==", code.toUpperCase()));
     const snapshot = await getDocs(couponQuery);
     if (snapshot.empty) {
-      return { valid: false };
+      return { valid: false, error: "not_found" };
     }
     const coupon = snapshot.docs[0].data();
     const now = Timestamp.now();
-    if (!coupon.active || coupon.expiryDate && coupon.expiryDate.toMillis ? coupon.expiryDate.toMillis() < now.toMillis() : new Date(coupon.expiryDate).getTime() < now.toMillis()) {
-      return { valid: false };
+    const isExpired = coupon.expiryDate && coupon.expiryDate.toMillis 
+      ? coupon.expiryDate.toMillis() < now.toMillis() 
+      : new Date(coupon.expiryDate).getTime() < now.toMillis();
+
+    if (!coupon.active || isExpired) {
+      return { valid: false, error: "expired" };
     }
     if (subtotal < coupon.minOrderAmount) {
-      return { valid: false };
+      return { valid: false, error: "min_amount" };
     }
     const discount = coupon.discountType === "percent"
       ? Math.round(subtotal * (coupon.discountValue / 100))
@@ -47,5 +51,29 @@ export const cartService = {
       discountType: coupon.discountType,
       discountValue: coupon.discountValue,
     };
+  },
+
+  async getPublicCoupons() {
+    try {
+      const q = query(collection(db, "coupons"), where("active", "==", true));
+      const snapshot = await getDocs(q);
+      return snapshot.docs
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            code: doc.id,
+            description: data.description || "",
+            discountPct: data.discountValue || data.discountPct || 10,
+            expires: data.expiryDate || data.expires || "",
+            uses: data.uses || 0,
+            active: data.active !== false,
+            isPublic: data.isPublic !== false,
+          };
+        })
+        .filter((c) => c.isPublic);
+    } catch (err) {
+      console.error("Failed to fetch public coupons:", err);
+      return [];
+    }
   },
 };

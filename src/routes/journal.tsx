@@ -1,8 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Clock, Tag, ArrowRight, Flame, Feather, Paintbrush, Landmark, Shirt, BookOpen } from "lucide-react";
 import { BLOG_POSTS } from "@/lib/blogData";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase/firestore";
+import { userService } from "@/services/userService";
+import { toast } from "sonner";
 import hero1 from "@/assets/hero-1.jpg";
 import hero2 from "@/assets/hero-2.jpg";
 import poster from "@/assets/product-poster.jpg";
@@ -48,22 +52,87 @@ export const Route = createFileRoute("/journal")({
 });
 
 function Blog() {
+  const location = useLocation();
+  const isDetail = location.pathname !== "/journal" && location.pathname !== "/journal/";
+
+  if (isDetail) {
+    return <Outlet />;
+  }
+
   const [activeCategory, setActiveCategory] = useState("all");
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
+  const [customBlogs, setCustomBlogs] = useState<any[]>([]);
+  const [featuredSlug, setFeaturedSlug] = useState<string | null>(null);
 
-  const featured = BLOG_POSTS.find((p) => p.featured)!;
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const slugParam = params.get("slug");
+      if (slugParam) {
+        setFeaturedSlug(slugParam);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    getDocs(collection(db, "blogs")).then((snap) => {
+      const list = snap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          slug: data.slug || doc.id,
+          title: data.title,
+          excerpt: data.excerpt || "",
+          tag: data.category || "Culture",
+          tagSlug: (data.category || "Culture").toLowerCase(),
+          date: data.date || "June 20, 2026",
+          readTime: data.readTime || "5 min read",
+          featured: false,
+          author: data.author || "Dharmik Atelier",
+          imgKey: data.imgKey || "hero1",
+          content: data.content || [],
+          relatedSlugs: [],
+        };
+      });
+      setCustomBlogs(list);
+    });
+  }, []);
+
+  const allPosts = useMemo(() => {
+    return [...customBlogs, ...BLOG_POSTS];
+  }, [customBlogs]);
+
+  const featured = useMemo(() => {
+    if (featuredSlug) {
+      const found = allPosts.find((p) => p.slug === featuredSlug);
+      if (found) return found;
+    }
+    return allPosts.find((p) => p.featured) || BLOG_POSTS.find((p) => p.featured)!;
+  }, [allPosts, featuredSlug]);
+  
   const featuredImg = IMG_MAP[featured.imgKey] ?? hero1;
 
-  const filtered =
-    activeCategory === "all"
-      ? BLOG_POSTS.filter((p) => !p.featured)
-      : BLOG_POSTS.filter((p) => p.tagSlug === activeCategory && !p.featured);
+  const filtered = useMemo(() => {
+    return activeCategory === "all"
+      ? allPosts.filter((p) => p.slug !== featured.slug)
+      : allPosts.filter((p) => p.tagSlug === activeCategory && p.slug !== featured.slug);
+  }, [allPosts, activeCategory, featured]);
 
-  function handleSubscribe(e: React.FormEvent) {
+  async function handleSubscribe(e: React.FormEvent) {
     e.preventDefault();
     if (email.trim()) {
-      setSubscribed(true);
+      try {
+        await userService.subscribeNewsletter(email);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("dharmik_subscribed_email", email.trim().toLowerCase());
+          window.dispatchEvent(new Event("storage"));
+          window.dispatchEvent(new CustomEvent("dharmik_subscription_change"));
+        }
+        setSubscribed(true);
+        toast.success("Welcome to the Dharma Community!");
+      } catch (err: any) {
+        toast.error(`Subscription failed: ${err.message}`);
+      }
     }
   }
 
@@ -131,7 +200,11 @@ function Blog() {
             transition={{ duration: 0.6 }}
             className="grid md:grid-cols-[1fr_1fr] lg:grid-cols-[1.4fr_1fr] gap-8 lg:gap-12 items-center"
           >
-            <div className="relative overflow-hidden rounded-sm aspect-[16/10] md:aspect-auto md:h-[520px] bg-muted">
+            <Link
+              to="/journal/$slug"
+              params={{ slug: featured.slug }}
+              className="relative block overflow-hidden rounded-sm aspect-[16/10] md:aspect-auto md:h-[520px] bg-muted hover:opacity-90 transition-opacity"
+            >
               <img
                 src={featuredImg}
                 alt={featured.title}
@@ -144,7 +217,7 @@ function Blog() {
                   Featured
                 </span>
               </div>
-            </div>
+            </Link>
 
             <div className="space-y-5">
               <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
@@ -161,20 +234,33 @@ function Blog() {
                 <span>{featured.date}</span>
               </div>
 
-              <h2 className="font-display text-3xl md:text-4xl lg:text-5xl leading-[1.05]">
-                {featured.title}
-              </h2>
+              <Link
+                to="/journal/$slug"
+                params={{ slug: featured.slug }}
+                className="block hover:text-[color:var(--saffron)] transition-colors"
+              >
+                <h2 className="font-display text-3xl md:text-4xl lg:text-5xl leading-[1.05]">
+                  {featured.title}
+                </h2>
+              </Link>
               <p className="text-foreground/70 leading-relaxed text-base md:text-lg">
                 {featured.excerpt}
               </p>
 
-              <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center justify-between pt-4 border-t border-[color:var(--border)]">
                 <div className="flex items-center gap-3">
                   <div className="size-9 rounded-full bg-[color:var(--saffron)] grid place-items-center text-white text-sm font-semibold">
                     {featured.author[0]}
                   </div>
                   <span className="text-sm font-medium">{featured.author}</span>
                 </div>
+                <Link
+                  to="/journal/$slug"
+                  params={{ slug: featured.slug }}
+                  className="flex items-center gap-1.5 bg-[color:var(--saffron)] text-white px-5 py-2.5 text-xs uppercase tracking-[0.2em] font-semibold hover:bg-[color:var(--ink)] hover:text-white transition-colors rounded-sm"
+                >
+                  Read Article <ArrowRight className="size-3.5" />
+                </Link>
               </div>
             </div>
           </motion.article>
@@ -215,6 +301,13 @@ function Blog() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-40px" }}
                   transition={{ duration: 0.55, delay: Math.min(i * 0.07, 0.28), ease: [0.16, 1, 0.3, 1] }}
+                  onClick={() => {
+                    setFeaturedSlug(post.slug);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                    const newUrl = `${window.location.pathname}?slug=${post.slug}`;
+                    window.history.pushState({ path: newUrl }, "", newUrl);
+                  }}
+                  className="cursor-pointer"
                 >
                   <div className="flex flex-col">
                     {/* Image */}
@@ -253,13 +346,21 @@ function Blog() {
                     </p>
 
                     {/* Footer */}
-                    <div className="mt-5 flex items-center justify-between">
+                    <div className="mt-5 flex items-center justify-between border-t border-[color:var(--border)] pt-4">
                       <div className="flex items-center gap-2">
                         <div className="size-7 rounded-full bg-gradient-to-br from-[color:var(--saffron)] to-[color:var(--gold)] grid place-items-center text-white text-[11px] font-bold">
                           {post.author[0]}
                         </div>
                         <span className="text-xs text-muted-foreground">{post.author}</span>
                       </div>
+                      <Link
+                        to="/journal/$slug"
+                        params={{ slug: post.slug }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1 text-[11px] uppercase tracking-wider font-semibold text-[color:var(--saffron)] hover:text-[color:var(--ink)] transition-colors"
+                      >
+                        Read Article <ArrowRight className="size-3.5" />
+                      </Link>
                     </div>
                   </div>
                 </motion.div>

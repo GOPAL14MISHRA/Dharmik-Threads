@@ -25,10 +25,14 @@ export function BestSellers() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 md:gap-x-6 gap-y-12">
-        {items.map((p, i) => (
-          <ProductCard key={p.id} p={p} index={i} />
-        ))}
+      <div className="relative w-full overflow-hidden">
+        <div className="flex flex-row flex-nowrap gap-6 w-max marquee hover:[animation-play-state:paused] py-4">
+          {[...items, ...items].map((p, i) => (
+            <div key={p.id + "-" + i} className="w-[260px] md:w-[300px] shrink-0">
+              <ProductCard p={p} index={i} />
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

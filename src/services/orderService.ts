@@ -21,6 +21,30 @@ function generateTrackingNumber() {
   return `TRK${Math.floor(100000000 + Math.random() * 900000000)}`;
 }
 
+function cleanOrder(id: string, data: any): Order {
+  let placedAt = "";
+  if (data.createdAt) {
+    if (data.placedAt) {
+      placedAt = data.placedAt;
+    } else if (typeof data.createdAt.toDate === "function") {
+      placedAt = data.createdAt.toDate().toISOString();
+    } else if (data.createdAt.seconds) {
+      placedAt = new Date(data.createdAt.seconds * 1000).toISOString();
+    } else {
+      placedAt = new Date(data.createdAt).toISOString();
+    }
+  } else {
+    placedAt = new Date().toISOString();
+  }
+
+  return {
+    ...data,
+    orderId: id,
+    placedAt,
+    createdAt: placedAt,
+  } as Order;
+}
+
 export const orderService = {
   async placeOrder(input: {
     userId: string;
@@ -37,15 +61,26 @@ export const orderService = {
     const orderRef = doc(db, "orders", orderId);
 
     await runTransaction(db, async (transaction) => {
+      const productDocs: { productRef: any; doc: any; item: CartItem }[] = [];
+      
+      // 1. Perform all reads first
       for (const item of input.items) {
         const productRef = doc(db, "products", item.productId);
         const productDoc = await transaction.get(productRef);
         if (!productDoc.exists()) {
           throw new Error(`Product ${item.productId} not found`);
         }
+        productDocs.push({ productRef, doc: productDoc, item });
+      }
+
+      // 2. Perform validation and calculate stock changes locally
+      const productVariantsMap = new Map<string, any[]>();
+
+      for (const { doc: productDoc, item } of productDocs) {
+        const productId = item.productId;
         const product = productDoc.data();
-        // New variant-based schema: find the right variant and size
-        const variants: any[] = product.variants ?? [];
+        
+        const variants: any[] = productVariantsMap.get(productId) ?? product.variants ?? [];
         const variantIdx = variants.findIndex((v: any) => v.variantId === item.variantId);
         if (variantIdx === -1) {
           throw new Error(`Variant ${item.variantId} not found for ${item.title}`);
@@ -55,6 +90,7 @@ export const orderService = {
         if (sizeIdx === -1 || sizes[sizeIdx].stock < item.quantity) {
           throw new Error(`Insufficient stock for ${item.title} — ${item.size}`);
         }
+        
         // Mutate a copy of the variants array with the decremented stock
         const updatedVariants = variants.map((v: any, vi: number) =>
           vi === variantIdx
@@ -66,7 +102,17 @@ export const orderService = {
               }
             : v
         );
-        transaction.update(productRef, { variants: updatedVariants });
+        productVariantsMap.set(productId, updatedVariants);
+      }
+
+      // 3. Perform all writes
+      const uniqueProductIds = new Set<string>();
+      for (const { productRef, item } of productDocs) {
+        if (!uniqueProductIds.has(item.productId)) {
+          uniqueProductIds.add(item.productId);
+          const updatedVariants = productVariantsMap.get(item.productId);
+          transaction.update(productRef, { variants: updatedVariants });
+        }
       }
 
       transaction.set(orderRef, {
@@ -109,19 +155,20 @@ export const orderService = {
       tax: input.tax,
       total: input.total,
       createdAt: new Date().toISOString(),
+      placedAt: new Date().toISOString(),
     };
   },
 
   async getOrders(userId: string) {
     const ordersQuery = query(collection(db, "orders"), where("userId", "==", userId));
     const snapshot = await getDocs(ordersQuery);
-    return snapshot.docs.map((docSnapshot) => docSnapshot.data() as Order);
+    return snapshot.docs.map((docSnapshot) => cleanOrder(docSnapshot.id, docSnapshot.data())).sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime());
   },
 
   async getOrder(id: string) {
     const orderDoc = await getDoc(doc(db, "orders", id));
     if (!orderDoc.exists()) return null;
-    return orderDoc.data() as Order;
+    return cleanOrder(orderDoc.id, orderDoc.data());
   },
 
   async trackOrder(id: string) {

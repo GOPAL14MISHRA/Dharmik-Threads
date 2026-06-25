@@ -1,5 +1,16 @@
 import { products as seedProducts } from "@/lib/data/products";
 import type { Product, Order, OrderStatus } from "@/lib/types";
+import {
+  collection,
+  doc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase/firestore";
+import { toast } from "sonner";
+import { notificationService } from "@/services/notificationService";
 
 export interface Customer {
   id: string;
@@ -19,168 +30,326 @@ export interface Coupon {
   expires: string;
   uses: number;
   active: boolean;
+  isPublic?: boolean;
 }
-
-const LS_KEY = "dharmik_admin_v1";
 
 interface AdminState {
   products: Product[];
   orders: Order[];
   customers: Customer[];
   coupons: Coupon[];
+  subscribers: any[];
 }
 
 const ORDER_STATUSES: OrderStatus[] = ["placed", "packed", "shipped", "out-for-delivery", "delivered"];
 
-function seedOrders(prods: Product[]): Order[] {
-  const cities: [string, string, string][] = [
-    ["Mumbai", "MH", "400001"],
-    ["Bengaluru", "KA", "560001"],
-    ["Delhi", "DL", "110001"],
-    ["Pune", "MH", "411001"],
-    ["Jaipur", "RJ", "302001"],
-    ["Varanasi", "UP", "221001"],
-    ["Chennai", "TN", "600001"],
-    ["Kolkata", "WB", "700001"],
-  ];
-  const names = ["Aarav Sharma", "Priya Kapoor", "Rohan Mehta", "Ananya Patel", "Kabir Dixit", "Ishaan Rao", "Diya Nair", "Vivaan Singh"];
-  const out: Order[] = [];
-  for (let i = 0; i < 18; i++) {
-    const p1 = prods[i % prods.length];
-    const p2 = prods[(i + 3) % prods.length];
-    const qty1 = 1 + (i % 2);
-    const p1v = p1.variants[0];
-    const p1s = p1v?.sizes[0];
-    const p2v = p2.variants[0];
-    const p2s = p2v?.sizes[0];
-    const price1 = p1s?.price ?? 999;
-    const price2 = p2s?.price ?? 999;
-    const total = price1 * qty1 + price2;
-    const c = cities[i % cities.length];
-    const name = names[i % names.length];
-    const days = i * 2;
-    out.push({
-      orderId: `DT${(10000000 + i * 137).toString().slice(-8)}`,
-      items: [
-        { productId: p1.id, variantId: p1v?.variantId ?? "", slug: p1.slug, title: p1.title, image: p1v?.images[0] ?? "", price: price1, size: p1s?.size ?? "M", color: p1v?.color.name ?? "Default", sku: p1s?.sku ?? "", quantity: qty1 },
-        { productId: p2.id, variantId: p2v?.variantId ?? "", slug: p2.slug, title: p2.title, image: p2v?.images[0] ?? "", price: price2, size: p2s?.size ?? "M", color: p2v?.color.name ?? "Default", sku: p2s?.sku ?? "", quantity: 1 },
-      ],
-      shippingAddress: {
-        id: `a${i}`,
-        fullName: name,
-        line1: `${100 + i} Temple Road`,
-        line2: "Sector 4",
-        city: c[0],
-        state: c[1],
-        pincode: c[2],
-        phone: `+91 9${(800000000 + i * 7919).toString().slice(0, 9)}`,
-      },
-      paymentMethod: i % 3 === 0 ? "cod" : "razorpay",
-      orderStatus: ORDER_STATUSES[i % ORDER_STATUSES.length],
-      trackingNumber: `TRK${(100000000 + i * 9173).toString()}`,
-      total,
-      placedAt: new Date(Date.now() - days * 86400000).toISOString(),
-    });
-  }
-  return out;
+// Initialize local store state
+let state: AdminState = {
+  products: [],
+  orders: [],
+  customers: [],
+  coupons: [],
+  subscribers: [],
+};
+
+const listeners = new Set<() => void>();
+
+function notify() {
+  listeners.forEach((fn) => fn());
 }
 
-function seedCustomers(orders: Order[]): Customer[] {
-  const map = new Map<string, Customer>();
-  orders.forEach((o, i) => {
-    const key = o.shippingAddress.fullName;
-    const existing = map.get(key);
+let registeredUsers: any[] = [];
+
+// Rebuild customer records in real-time by combining registered users and order histories
+function rebuildCustomers() {
+  const customerMap = new Map<string, Customer>();
+
+  // 1. Map registered users
+  registeredUsers.forEach((u) => {
+    customerMap.set(u.email.toLowerCase(), {
+      id: u.uid || u.id,
+      name: u.name || "N/A",
+      email: u.email,
+      phone: u.phone || "—",
+      city: u.addresses?.[0]?.city || "—",
+      joinedAt: u.createdAt?.toDate 
+        ? u.createdAt.toDate().toISOString() 
+        : u.createdAt 
+          ? new Date(u.createdAt).toISOString()
+          : new Date().toISOString(),
+      orders: 0,
+      spent: 0,
+    });
+  });
+
+  // 2. Accumulate order metrics
+  state.orders.forEach((o) => {
+    const emailKey = o.shippingAddress.fullName.toLowerCase().replace(/\s/g, ".") + "@gmail.com";
+    const userEmail = o.userId ? (registeredUsers.find((u) => (u.uid || u.id) === o.userId)?.email) : null;
+    const lookupKey = (userEmail || o.shippingAddress.email || emailKey).toLowerCase();
+
+    const existing = customerMap.get(lookupKey);
     if (existing) {
       existing.orders += 1;
       existing.spent += o.total;
+      if (o.shippingAddress.city && existing.city === "—") {
+        existing.city = o.shippingAddress.city;
+      }
     } else {
-      map.set(key, {
-        id: `c${i}`,
-        name: key,
-        email: key.toLowerCase().replace(/\s/g, ".") + "@gmail.com",
+      customerMap.set(lookupKey, {
+        id: o.userId || `guest-${o.orderId}`,
+        name: o.shippingAddress.fullName,
+        email: o.shippingAddress.email || lookupKey,
         phone: o.shippingAddress.phone,
         city: o.shippingAddress.city,
-        joinedAt: new Date(Date.now() - (60 + i * 5) * 86400000).toISOString(),
+        joinedAt: o.placedAt || new Date().toISOString(),
         orders: 1,
         spent: o.total,
       });
     }
   });
-  return Array.from(map.values());
+
+  state.customers = Array.from(customerMap.values());
+  notify();
+}
+
+// Setup live observers on client
+if (typeof window !== "undefined") {
+  // Listen to Products
+  onSnapshot(collection(db, "products"), (snapshot) => {
+    state.products = snapshot.docs.map((docSnapshot) => {
+      const data = docSnapshot.data();
+      return { id: docSnapshot.id, ...data } as Product;
+    });
+    notify();
+  });
+
+  // Listen to Orders
+  onSnapshot(collection(db, "orders"), (snapshot) => {
+    state.orders = snapshot.docs.map((docSnapshot) => {
+      const data = docSnapshot.data();
+      let placedAt = "";
+      if (data.createdAt) {
+        if (data.placedAt) {
+          placedAt = data.placedAt;
+        } else if (data.createdAt.toDate) {
+          placedAt = data.createdAt.toDate().toISOString();
+        } else if (data.createdAt.seconds) {
+          placedAt = new Date(data.createdAt.seconds * 1000).toISOString();
+        } else {
+          placedAt = new Date(data.createdAt).toISOString();
+        }
+      } else {
+        placedAt = new Date().toISOString();
+      }
+      return {
+        ...data,
+        orderId: docSnapshot.id,
+        placedAt,
+      } as unknown as Order;
+    }).sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime());
+    rebuildCustomers();
+  });
+
+  // Listen to Coupons
+  onSnapshot(collection(db, "coupons"), (snapshot) => {
+    state.coupons = snapshot.docs.map((docSnapshot) => {
+      const data = docSnapshot.data();
+      return {
+        code: docSnapshot.id,
+        description: data.description || "",
+        discountPct: data.discountValue || data.discountPct || 10,
+        expires: data.expiryDate || data.expires || "",
+        uses: data.uses || 0,
+        active: data.active !== false,
+        isPublic: data.isPublic !== false,
+      } as Coupon;
+    });
+    notify();
+  });
+
+  // Listen to Registered Users
+  onSnapshot(collection(db, "users"), (snapshot) => {
+    registeredUsers = snapshot.docs.map((docSnapshot) => ({
+      uid: docSnapshot.id,
+      ...docSnapshot.data(),
+    }));
+    rebuildCustomers();
+  });
+
+  // Listen to Newsletter Subscribers
+  onSnapshot(collection(db, "newsletter"), (snapshot) => {
+    state.subscribers = snapshot.docs.map((docSnapshot) => ({
+      email: docSnapshot.id,
+      ...docSnapshot.data(),
+    }));
+    notify();
+  });
 }
 
 function seedCoupons(): Coupon[] {
   return [
-    { code: "DHARMA10", description: "10% off your next order", discountPct: 10, expires: "2026-12-31", uses: 142, active: true },
-    { code: "OMSHANTI", description: "Free shipping on ₹1499+", discountPct: 0, expires: "2026-09-30", uses: 89, active: true },
-    { code: "MAHADEV15", description: "15% off Mahadev collection", discountPct: 15, expires: "2026-08-15", uses: 56, active: true },
-    { code: "DIWALI25", description: "25% off festival drop", discountPct: 25, expires: "2026-11-10", uses: 0, active: false },
+    { code: "DHARMA10", description: "10% off your next order", discountPct: 10, expires: "2026-12-31", uses: 142, active: true, isPublic: true },
+    { code: "OMSHANTI", description: "Free shipping on ₹1499+", discountPct: 0, expires: "2026-09-30", uses: 89, active: true, isPublic: true },
+    { code: "MAHADEV15", description: "15% off Mahadev collection", discountPct: 15, expires: "2026-08-15", uses: 56, active: true, isPublic: false },
+    { code: "DIWALI25", description: "25% off festival drop", discountPct: 25, expires: "2026-11-10", uses: 0, active: false, isPublic: true },
   ];
 }
 
-function load(): AdminState {
-  if (typeof window !== "undefined") {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch {}
-  }
-  const ords = seedOrders(seedProducts);
-  return {
-    products: seedProducts.map((p) => ({ ...p })),
-    orders: ords,
-    customers: seedCustomers(ords),
-    coupons: seedCoupons(),
-  };
-}
-
-let state: AdminState = load();
-const listeners = new Set<() => void>();
-
-function persist() {
-  if (typeof window !== "undefined") {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch {}
-  }
-  listeners.forEach((l) => l());
-}
-
 export const adminStore = {
-  subscribe(fn: () => void) { listeners.add(fn); return () => listeners.delete(fn); },
-  getState() { return state; },
-  reset() { localStorage.removeItem(LS_KEY); state = load(); persist(); },
-
-  // products
-  updateProduct(id: string, patch: Partial<Product>) {
-    state.products = state.products.map((p) => (p.id === id ? { ...p, ...patch } : p));
-    persist();
+  subscribe(fn: () => void) {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
   },
-  deleteProduct(id: string) {
-    state.products = state.products.filter((p) => p.id !== id);
-    persist();
-  },
-  addProduct(p: Product) {
-    state.products = [p, ...state.products];
-    persist();
+  getState() {
+    return state;
   },
 
-  // orders
-  updateOrderStatus(orderId: string, status: OrderStatus) {
-    state.orders = state.orders.map((o) => (o.orderId === orderId ? { ...o, orderStatus: status } : o));
-    persist();
+  // Products
+  async addProduct(p: Product) {
+    try {
+      const productRef = doc(db, "products", p.id);
+      await setDoc(productRef, p);
+      toast.success(`Product "${p.title}" saved to database.`);
+      
+      // Dispatch subscriber notifications
+      toast.promise(
+        notificationService.notifyNewProduct({
+          id: p.id,
+          title: p.title,
+          description: p.description,
+          slug: p.slug
+        }),
+        {
+          loading: "Sending exciting notifications to subscribed users...",
+          success: "Subscribers successfully notified! 🎉",
+          error: "Failed to notify subscribers.",
+        }
+      );
+    } catch (error: any) {
+      console.error("Error writing product to Firestore:", error);
+      toast.error(`Database Error: ${error.message}`);
+    }
+  },
+  async updateProduct(id: string, patch: Partial<Product>) {
+    try {
+      const productRef = doc(db, "products", id);
+      await updateDoc(productRef, patch);
+      toast.success("Product updated in database.");
+    } catch (error: any) {
+      console.error("Error updating product in Firestore:", error);
+      toast.error(`Database Error: ${error.message}`);
+    }
+  },
+  async deleteProduct(id: string) {
+    try {
+      const productRef = doc(db, "products", id);
+      await deleteDoc(productRef);
+      toast.success("Product deleted from database.");
+    } catch (error: any) {
+      console.error("Error deleting product from Firestore:", error);
+      toast.error(`Database Error: ${error.message}`);
+    }
   },
 
-  // coupons
-  toggleCoupon(code: string) {
-    state.coupons = state.coupons.map((c) => (c.code === code ? { ...c, active: !c.active } : c));
-    persist();
+  // Orders
+  async updateOrderStatus(orderId: string, status: OrderStatus) {
+    try {
+      const orderRef = doc(db, "orders", orderId);
+      await updateDoc(orderRef, { orderStatus: status });
+      toast.success(`Order #${orderId} status set to ${status} in database.`);
+    } catch (error: any) {
+      console.error("Error updating order status in Firestore:", error);
+      toast.error(`Database Error: ${error.message}`);
+    }
   },
-  addCoupon(c: Coupon) {
-    state.coupons = [c, ...state.coupons];
-    persist();
+
+  // Coupons
+  async addCoupon(c: Coupon) {
+    try {
+      const couponRef = doc(db, "coupons", c.code.toUpperCase());
+      // Save in the exact schema that cartService.ts uses to verify coupons
+      await setDoc(couponRef, {
+        code: c.code.toUpperCase(),
+        description: c.description,
+        discountType: "percent",
+        discountValue: c.discountPct,
+        expiryDate: c.expires,
+        minOrderAmount: 0,
+        uses: c.uses,
+        active: c.active,
+        isPublic: c.isPublic ?? true,
+      });
+      toast.success(`Coupon "${c.code}" saved to database.`);
+    } catch (error: any) {
+      console.error("Error writing coupon to Firestore:", error);
+      toast.error(`Database Error: ${error.message}`);
+    }
   },
-  deleteCoupon(code: string) {
-    state.coupons = state.coupons.filter((c) => c.code !== code);
-    persist();
+  async toggleCoupon(code: string) {
+    try {
+      const existing = state.coupons.find((c) => c.code === code);
+      if (existing) {
+        const couponRef = doc(db, "coupons", code);
+        await updateDoc(couponRef, { active: !existing.active });
+        toast.success(`Coupon ${code} status toggled in database.`);
+      }
+    } catch (error: any) {
+      console.error("Error toggling coupon in Firestore:", error);
+      toast.error(`Database Error: ${error.message}`);
+    }
+  },
+  async toggleCouponPublic(code: string) {
+    try {
+      const existing = state.coupons.find((c) => c.code === code);
+      if (existing) {
+        const couponRef = doc(db, "coupons", code);
+        await updateDoc(couponRef, { isPublic: !existing.isPublic });
+        toast.success(`Coupon ${code} target group updated in database.`);
+      }
+    } catch (error: any) {
+      console.error("Error toggling coupon public status in Firestore:", error);
+      toast.error(`Database Error: ${error.message}`);
+    }
+  },
+  async deleteCoupon(code: string) {
+    try {
+      const couponRef = doc(db, "coupons", code);
+      await deleteDoc(couponRef);
+      toast.success("Coupon removed from database.");
+    } catch (error: any) {
+      console.error("Error deleting coupon from Firestore:", error);
+      toast.error(`Database Error: ${error.message}`);
+    }
+  },
+
+  // Reset/Seeding
+  async reset() {
+    try {
+      toast.info("Reseeding catalog to database...");
+      // Upload default products
+      for (const p of seedProducts) {
+        await setDoc(doc(db, "products", p.id), p);
+      }
+      // Upload default coupons
+      for (const cp of seedCoupons()) {
+        await setDoc(doc(db, "coupons", cp.code), {
+          code: cp.code,
+          description: cp.description,
+          discountType: "percent",
+          discountValue: cp.discountPct,
+          expiryDate: cp.expires,
+          minOrderAmount: 0,
+          uses: cp.uses,
+          active: cp.active,
+          isPublic: cp.isPublic ?? true,
+        });
+      }
+      toast.success("Database re-seeded with demo data successfully.");
+    } catch (error: any) {
+      console.error("Error seeding Firestore demo data:", error);
+      toast.error(`Database Seed Error: ${error.message}`);
+    }
   },
 };
 

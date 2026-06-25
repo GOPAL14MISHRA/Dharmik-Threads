@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter, redirect } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useCart } from "@/stores/cart";
 import { inr } from "@/lib/format";
@@ -7,35 +7,15 @@ import { orderService } from "@/services/orderService";
 import { authService } from "@/services/authService";
 import type { Address, PaymentMethod, User } from "@/lib/types";
 import { toast } from "sonner";
+import { userService } from "@/services/userService";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({ meta: [{ title: "Checkout — Dharmik" }] }),
-  beforeLoad: async () => {
-    const user = await authService.getCurrentUser();
-    if (!user) {
-      throw redirect({ to: "/account", replace: true });
-    }
-  },
   component: CheckoutPage,
 });
 
 function getCheckoutItemImageStyleAndOverlay(color: string) {
-  const name = color.toLowerCase();
-  let filterStyle = "";
-  let overlayElement = null;
-
-  if (name.includes("black") || name.includes("charcoal") || name.includes("midnight") || name.includes("ink")) {
-    filterStyle = "brightness(0.35) contrast(1.1) grayscale(0.85)";
-  } else if (name.includes("saffron") || name.includes("orange")) {
-    filterStyle = "sepia(0.3) saturate(1.25) hue-rotate(-10deg)";
-    overlayElement = (
-      <div
-        className="absolute inset-0 pointer-events-none mix-blend-color opacity-55"
-        style={{ backgroundColor: "#FF6B00" }}
-      />
-    );
-  }
-  return { filterStyle, overlayElement };
+  return { filterStyle: "", overlayElement: null };
 }
 
 function CheckoutPage() {
@@ -48,10 +28,28 @@ function CheckoutPage() {
   const subtotal = items.reduce((a, x) => a + x.price * x.quantity, 0);
   const [coupon, setCoupon] = useState(couponCode ?? "");
   const [payment, setPayment] = useState<PaymentMethod>("razorpay");
+  const [publicCoupons, setPublicCoupons] = useState<any[]>([]);
+
+  function handleSelectCoupon(code: string) {
+    setCoupon(code);
+    cartService.applyCoupon(code, subtotal).then((res) => {
+      if (res.valid) {
+        setCouponStore(res.code!, res.discount ?? 0);
+        toast.success(`Coupon ${res.code} applied`);
+      } else {
+        if (res.error === "expired") {
+          toast.error("coupon is expired");
+        } else {
+          toast.error("Invalid coupon");
+        }
+      }
+    });
+  }
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<Address>({
     id: "new", fullName: "", line1: "", line2: "", city: "", state: "", pincode: "", phone: "",
   });
+  const [email, setEmail] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const router = useRouter();
@@ -64,7 +62,11 @@ function CheckoutPage() {
       setCouponStore(res.code!, res.discount ?? 0);
       toast.success(`Coupon ${res.code} applied`);
     } else {
-      toast.error("Invalid coupon");
+      if (res.error === "expired") {
+        toast.error("coupon is expired");
+      } else {
+        toast.error("Invalid coupon");
+      }
     }
   }
 
@@ -72,52 +74,108 @@ function CheckoutPage() {
     async function loadUser() {
       const currentUser = await authService.getCurrentUser();
       setUser(currentUser);
+      if (currentUser) {
+        setEmail(currentUser.email || "");
+        setForm((prev) => ({
+          ...prev,
+          fullName: currentUser.name || "",
+          phone: currentUser.phone || "",
+          line1: currentUser.addresses?.[0]?.line1 || "",
+          line2: currentUser.addresses?.[0]?.line2 || "",
+          city: currentUser.addresses?.[0]?.city || "",
+          state: currentUser.addresses?.[0]?.state || "",
+          pincode: currentUser.addresses?.[0]?.pincode || "",
+        }));
+      }
       setAuthLoading(false);
     }
     loadUser();
+    
+    // Load available coupons
+    cartService.getPublicCoupons().then(setPublicCoupons);
   }, []);
 
   async function placeOrder(e: React.FormEvent) {
     e.preventDefault();
-    if (!user) {
-      toast.error("Please sign in to complete your order.");
-      router.navigate({ to: "/account" });
+    setLoading(true);
+
+    const finalUserId = user ? user.id : `guest-${Date.now()}`;
+    const finalEmail = email.trim().toLowerCase();
+
+    if (!finalEmail || !/^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(finalEmail)) {
+      toast.error("Email address must be a valid email containing @gmail.com");
+      setLoading(false);
       return;
     }
-    setLoading(true);
-    const order = await orderService.placeOrder({
-      userId: user.id,
-      items,
-      shippingAddress: form,
-      paymentMethod: payment,
-      subtotal,
-      discount,
-      tax: 0,
-      total,
-    });
-    clear();
-    setLoading(false);
-    toast.success("Order placed");
-    router.navigate({ to: "/track", search: { id: order.orderId } as never });
+
+    let cleanPhone = form.phone.replace(/\D/g, "");
+    if (cleanPhone.length === 12 && cleanPhone.startsWith("91")) {
+      cleanPhone = cleanPhone.slice(2);
+    } else if (cleanPhone.length === 11 && cleanPhone.startsWith("0")) {
+      cleanPhone = cleanPhone.slice(1);
+    }
+
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      toast.error("Mobile number must be exactly 10 digits and the first digit of mobile number should be greater than 5");
+      setLoading(false);
+      return;
+    }
+
+    if (payment === "razorpay") {
+      alert("Currently Razorpay is not working, only Cash on Delivery is working. When I add Razorpay, we will enable this option too.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      if (user) {
+        try {
+          await userService.updateProfile({ phone: cleanPhone });
+        } catch (profileErr) {
+          console.error("Failed to update user profile phone number during checkout:", profileErr);
+        }
+      }
+
+      const order = await orderService.placeOrder({
+        userId: finalUserId,
+        items,
+        shippingAddress: {
+          ...form,
+          phone: cleanPhone,
+          email: finalEmail,
+        } as any,
+        paymentMethod: payment,
+        subtotal,
+        discount,
+        tax: 0,
+        total,
+      });
+
+      // For guest checkout: write their email to localStorage for notifications drawer automatic mapping
+      if (!user) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("dharmik_subscribed_email", finalEmail);
+          window.dispatchEvent(new Event("storage"));
+          window.dispatchEvent(new CustomEvent("dharmik_subscription_change"));
+        }
+      }
+
+      clear();
+      setLoading(false);
+      toast.success("Order placed successfully");
+      router.navigate({ to: "/track", search: { id: order.orderId } as never });
+    } catch (err: any) {
+      console.error(err);
+      const cleanMessage = (err.message || "Failed to place order")
+        .replace(/firebase/gi, "Database")
+        .replace(/firestore/gi, "Database");
+      toast.error(cleanMessage);
+      setLoading(false);
+    }
   }
 
   if (authLoading) {
     return <div className="container-luxe py-24 text-center">Loading authentication...</div>;
-  }
-
-  if (!user) {
-    return (
-      <div className="container-luxe py-24 text-center">
-        <h1 className="font-display text-4xl">Sign in to checkout</h1>
-        <p className="text-muted-foreground mt-3">You need an account to place an order and track it later.</p>
-        <button
-          onClick={() => router.navigate({ to: "/account" })}
-          className="mt-8 bg-[color:var(--ink)] text-[color:var(--ivory)] px-8 py-3 text-xs uppercase tracking-[0.25em] hover:bg-[color:var(--saffron)] transition-colors"
-        >
-          Go to account
-        </button>
-      </div>
-    );
   }
 
   if (items.length === 0) {
@@ -136,7 +194,31 @@ function CheckoutPage() {
         <form onSubmit={placeOrder} className="space-y-10">
           <Section title="Contact">
             <Input label="Full name" value={form.fullName} onChange={(v) => setForm({ ...form, fullName: v })} required />
-            <Input label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} required />
+            <Input label="Email address" value={email} onChange={setEmail} required type="email" />
+            <Input
+              label="Phone"
+              value={form.phone}
+              onChange={(v) => {
+                let clean = v.replace(/\D/g, "");
+                if (clean.length > 10) {
+                  if (clean.length === 12 && clean.startsWith("91")) {
+                    clean = clean.slice(2);
+                  } else if (clean.length === 11 && clean.startsWith("0")) {
+                    clean = clean.slice(1);
+                  }
+                }
+                if (clean.length > 0 && !/^[6-9]/.test(clean)) {
+                  clean = "";
+                }
+                clean = clean.slice(0, 10);
+                setForm({ ...form, phone: clean });
+              }}
+              required
+              type="tel"
+              maxLength={10}
+              pattern="[6-9][0-9]{9}"
+              placeholder="10-digit mobile number"
+            />
           </Section>
           <Section title="Shipping address">
             <Input label="Address line 1" value={form.line1} onChange={(v) => setForm({ ...form, line1: v })} required />
@@ -168,7 +250,7 @@ function CheckoutPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[color:var(--ink)] text-[color:var(--ivory)] py-4 text-xs uppercase tracking-[0.25em] font-medium hover:bg-[color:var(--saffron)] transition-colors disabled:opacity-60"
+            className="w-full bg-[color:var(--ink)] text-[color:var(--ivory)] py-4 text-xs uppercase tracking-[0.25em] font-medium hover:bg-[color:var(--saffron)] transition-colors disabled:opacity-60 cursor-pointer"
           >
             {loading ? "Placing order…" : `Place order · ${inr(total)}`}
           </button>
@@ -206,6 +288,60 @@ function CheckoutPage() {
             </div>
           )}
 
+          {publicCoupons.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-[color:var(--border)]">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-2.5">Available Offers</p>
+              <div className="space-y-2">
+                {publicCoupons.map((c) => {
+                  const isCurrent = couponCode === c.code;
+                  return (
+                    <div
+                      key={c.code}
+                      onClick={() => handleSelectCoupon(c.code)}
+                      className={`group p-3 border rounded-lg transition-all duration-300 flex items-center justify-between cursor-pointer text-left ${
+                        isCurrent
+                          ? "border-[color:var(--saffron)] bg-[color:var(--saffron)]/[0.03]"
+                          : "border-[color:var(--border)] hover:border-stone-400 bg-stone-50/30 hover:bg-stone-50"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1 pr-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-mono text-[10px] font-bold tracking-wide uppercase px-1.5 py-0.5 border rounded ${
+                            isCurrent
+                              ? "bg-[color:var(--saffron)] text-white border-[color:var(--saffron)]"
+                              : "bg-white text-stone-750 border-stone-200 group-hover:border-stone-300"
+                          }`}>
+                            {c.code}
+                          </span>
+                          {c.discountPct > 0 && (
+                            <span className="text-[10px] font-bold text-[color:var(--saffron)]">
+                              {c.discountPct}% OFF
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-1.5 leading-snug truncate">{c.description}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectCoupon(c.code);
+                        }}
+                        className={`text-[9px] uppercase tracking-widest font-bold px-3 py-1.5 rounded transition-all cursor-pointer ${
+                          isCurrent
+                            ? "bg-emerald-50 text-emerald-600 border border-emerald-250"
+                            : "bg-[color:var(--ink)] text-[color:var(--ivory)] hover:bg-[color:var(--saffron)]"
+                        }`}
+                      >
+                        {isCurrent ? "Applied" : "Apply"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="mt-6 pt-6 border-t space-y-2 text-sm">
             <Row label="Subtotal" value={inr(subtotal)} />
             {discount > 0 && <Row label="Discount" value={`− ${inr(discount)}`} accent />}
@@ -229,15 +365,40 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Input({ label, value, onChange, required }: { label: string; value: string; onChange: (v: string) => void; required?: boolean }) {
+function Input({
+  label,
+  value,
+  onChange,
+  required,
+  type = "text",
+  disabled,
+  maxLength,
+  pattern,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+  type?: string;
+  disabled?: boolean;
+  maxLength?: number;
+  pattern?: string;
+  placeholder?: string;
+}) {
   return (
     <label className="block">
       <span className="text-xs uppercase tracking-widest text-muted-foreground">{label}</span>
       <input
+        type={type}
         value={value}
         required={required}
+        disabled={disabled}
+        maxLength={maxLength}
+        pattern={pattern}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full bg-transparent border-b border-[color:var(--border)] py-2 focus:outline-none focus:border-[color:var(--saffron)]"
+        className="mt-1 w-full bg-transparent border-b border-[color:var(--border)] py-2 focus:outline-none focus:border-[color:var(--saffron)] disabled:opacity-50"
       />
     </label>
   );

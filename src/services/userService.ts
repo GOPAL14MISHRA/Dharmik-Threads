@@ -2,6 +2,7 @@ import { auth } from "@/lib/firebase/auth";
 import { db } from "@/lib/firebase/firestore";
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import type { Address, User } from "@/lib/types";
+import { notificationService } from "./notificationService";
 
 export const userService = {
   async updateProfile(patch: Partial<User>) {
@@ -30,11 +31,32 @@ export const userService = {
     return { ok: true, addr };
   },
   async subscribeNewsletter(email: string) {
-    const newsletterRef = doc(db, "newsletter", email);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) throw new Error("Email is required");
+
+    const newsletterRef = doc(db, "newsletter", cleanEmail);
     await setDoc(newsletterRef, {
-      email,
+      email: cleanEmail,
       subscribedAt: serverTimestamp(),
     });
-    return { ok: true, email };
+
+    // Write a welcome email notification if not already sent
+    const emailId = `welcome-${cleanEmail.replace(/[^a-z0-9]/g, "_")}`;
+    const welcomeRef = doc(db, "sent_emails", emailId);
+    const subject = "Successfully Subscribed to Dharmik Threads!";
+    const body = "Successfully Subscribed to Dharmik Threads!\nJai Shri Ram! 🙏\n\nYou have successfully subscribed to Dharmik Threads.\n\nWe preserve Sanatan culture through modern, premium craft. Whenever a new product is launched or a new story is posted on our blog, you will receive a notification here.\n\nThank you for joining our community.";
+    
+    await setDoc(welcomeRef, {
+      to: cleanEmail,
+      subject,
+      body,
+      type: "subscription",
+      sentAt: new Date().toISOString(),
+    });
+
+    // Send the real transactional email directly
+    await notificationService.sendDirectEmail(cleanEmail, subject, body);
+
+    return { ok: true, email: cleanEmail };
   },
 };

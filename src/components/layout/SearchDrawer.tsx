@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Search, X } from "lucide-react";
 import { useUI } from "@/stores/ui";
-import { products } from "@/lib/data/products";
+import { productService } from "@/services/productService";
+import type { Product } from "@/lib/types";
 import { getDefaultImage, getBasePrice } from "@/lib/types";
 import { inr } from "@/lib/format";
 
@@ -10,11 +11,13 @@ export function SearchDrawer() {
   const open = useUI((s) => s.searchOpen);
   const setOpen = useUI((s) => s.setSearchOpen);
   const [query, setQuery] = useState("");
+  const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setQuery("");
+      productService.getProducts().then(setDbProducts);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -30,7 +33,7 @@ export function SearchDrawer() {
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return products
+    return dbProducts
       .filter((p) => {
         const hay = [
           p.title,
@@ -42,9 +45,8 @@ export function SearchDrawer() {
           .join(" ")
           .toLowerCase();
         return hay.includes(q);
-      })
-      ;
-  }, [query]);
+      });
+  }, [query, dbProducts]);
 
   const trending = ["Mahadev", "Krishna", "Hoodies", "Hanuman", "Posters"];
 

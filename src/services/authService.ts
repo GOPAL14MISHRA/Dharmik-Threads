@@ -19,6 +19,9 @@ function mapUser(user: any, docData: any): User {
     email: docData?.email ?? user.email ?? "",
     phone: docData?.phone ?? user.phoneNumber ?? "",
     addresses: docData?.addresses ?? [],
+    joinedAt: docData?.joinedAt ?? "",
+    orders: docData?.orders ?? 0,
+    spent: docData?.spent ?? 0,
   };
 }
 
@@ -31,7 +34,7 @@ export const authService = {
     return { user, token: await credential.user.getIdToken() };
   },
 
-  async signup(name: string, email: string, password: string, phone: string, address: any) {
+  async signup(name: string, email: string, password: string, phone: string, address?: any) {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(credential.user, { displayName: name });
     const addresses = address ? [{ ...address, id: Date.now().toString() }] : [];
@@ -41,6 +44,9 @@ export const authService = {
       email,
       phone,
       addresses,
+      joinedAt: new Date().toISOString(),
+      orders: 0,
+      spent: 0,
     };
     await setDoc(doc(db, "users", user.id), {
       uid: user.id,
