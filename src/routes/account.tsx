@@ -49,6 +49,7 @@ function AccountPage() {
   const [user, setUser] = useState<User | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [tab, setTab] = useState<TabKey>("profile");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -97,7 +98,7 @@ function AccountPage() {
         }
 
         if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
-          toast.error("Mobile number must be exactly 10 digits, starting with 6, 7, 8, or 9");
+          toast.error("Mobile number must be exactly 10 digits and the first digit of mobile number should be greater than 5");
           setLoading(false);
           return;
         }
@@ -117,6 +118,9 @@ function AccountPage() {
       console.error("Login error:", err);
       const code = err?.code as string | undefined;
       let message = err?.message || "Login failed";
+      
+      message = message.replace(/firebase/gi, "Authentication").replace(/firestore/gi, "Database").replace(/auth\//gi, "");
+
       if (code) {
         switch (code) {
           case 'auth/email-already-in-use':
@@ -129,13 +133,18 @@ function AccountPage() {
             message = 'Password is too weak. Use at least 6 characters.';
             break;
           case 'auth/wrong-password':
-            message = 'Incorrect password.';
+          case 'auth/invalid-credential':
+            message = 'Incorrect email or password.';
             break;
           case 'auth/user-not-found':
             message = 'No account found with this email.';
             break;
+          case 'auth/user-disabled':
+            message = 'This account has been disabled.';
+            break;
           default:
-            message = `${code} — ${message}`;
+            const cleanCode = code.replace(/auth\//g, "").replace(/-/g, " ");
+            message = `${cleanCode} — ${message}`;
         }
       }
       toast.error(message);
@@ -155,9 +164,19 @@ function AccountPage() {
       toast.success(`Welcome${res.user.name ? ", " + res.user.name.split(" ")[0] : ""}.`);
     } catch (error: any) {
       console.error("Google login error:", error);
-      const errorMessage = error.code 
-        ? `Firebase Error: ${error.code} - ${error.message}`
-        : error.message || "Google login failed";
+      const code = error.code;
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        // Show loading screen for 1 second, then dismiss without error
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        return;
+      }
+      let errorMessage = error.message || "Google login failed";
+      errorMessage = errorMessage.replace(/firebase/gi, "Authentication").replace(/firestore/gi, "Database").replace(/auth\//gi, "");
+      
+      if (code) {
+        const cleanCode = code.replace(/auth\//g, "").replace(/-/g, " ");
+        errorMessage = `${cleanCode} — ${errorMessage}`;
+      }
       toast.error(errorMessage);
     } finally {
       setGoogleLoading(false);
@@ -364,7 +383,35 @@ function AccountPage() {
                 {mode === "signup" && (
                   <div className="grid grid-cols-2 gap-3">
                     <Input label="Name" value={name} onChange={setName} required disabled={loading} />
-                    <Input label="Mobile" value={phone} onChange={setPhone} type="tel" disabled={loading} />
+                    <Input
+                      label="Mobile"
+                      value={phone}
+                      onChange={(v) => {
+                        let clean = v.replace(/\D/g, "");
+                        
+                        // Handle country codes / prefixes if copy-pasted or typed
+                        if (clean.length > 10) {
+                          if (clean.length === 12 && clean.startsWith("91")) {
+                            clean = clean.slice(2);
+                          } else if (clean.length === 11 && clean.startsWith("0")) {
+                            clean = clean.slice(1);
+                          }
+                        }
+                        
+                        // Validate first digit (must be greater than 5)
+                        if (clean.length > 0 && !/^[6-9]/.test(clean)) {
+                          return;
+                        }
+                        
+                        // Limit to exactly 10 digits
+                        clean = clean.slice(0, 10);
+                        
+                        setPhone(clean);
+                      }}
+                      type="tel"
+                      required
+                      disabled={loading}
+                    />
                   </div>
                 )}
                 <Input label="Email address" value={email} onChange={setEmail} type="email" required disabled={loading} />
@@ -426,34 +473,60 @@ function AccountPage() {
 
       <div className="container-luxe py-12 grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
         {/* LEFT NAV */}
-        <aside className="lg:sticky lg:top-24 lg:self-start">
-          <nav className="border border-[color:var(--border)] bg-white/60 backdrop-blur">
-            {NAV.map((item) => {
-              const Icon = item.icon;
-              const active = tab === item.key;
+        <aside className="relative z-30 lg:sticky lg:top-24 lg:self-start">
+          <nav className="relative border border-[color:var(--border)] bg-white/60 backdrop-blur">
+            {/* Mobile Dropdown Trigger */}
+            {(() => {
+              const activeNav = NAV.find((n) => n.key === tab) || NAV[0];
+              const ActiveIcon = activeNav.icon;
               return (
                 <button
-                  key={item.key}
-                  onClick={() => setTab(item.key)}
-                  className={`group w-full flex items-center gap-3 px-5 py-4 text-sm border-l-2 transition-all ${
-                    active
-                      ? "border-[color:var(--saffron)] bg-[color:var(--saffron)]/10 text-[color:var(--ink)]"
-                      : "border-transparent text-muted-foreground hover:text-[color:var(--ink)] hover:bg-black/[0.02]"
-                  }`}
+                  type="button"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="lg:hidden w-full flex items-center gap-3 px-5 py-4 text-sm border-l-2 border-[color:var(--saffron)] bg-[color:var(--saffron)]/10 text-[color:var(--ink)]"
                 >
-                  <Icon className={`h-4 w-4 ${active ? "text-[color:var(--saffron)]" : ""}`} />
-                  <span className="uppercase tracking-widest text-[11px] font-medium">{item.label}</span>
-                  <ChevronRight className={`ml-auto h-3.5 w-3.5 transition-transform ${active ? "translate-x-0.5 text-[color:var(--saffron)]" : "opacity-0 group-hover:opacity-100"}`} />
+                  <ActiveIcon className="h-4 w-4 text-[color:var(--saffron)]" />
+                  <span className="uppercase tracking-widest text-[11px] font-bold">{activeNav.label}</span>
+                  <ChevronRight className={`ml-auto h-4 w-4 transition-transform text-[color:var(--saffron)] ${mobileMenuOpen ? "rotate-90" : ""}`} />
                 </button>
               );
-            })}
-            <button
-              onClick={logout}
-              className="w-full flex items-center gap-3 px-5 py-4 text-sm border-l-2 border-transparent text-muted-foreground hover:text-red-700 hover:bg-red-50 transition-colors"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="uppercase tracking-widest text-[11px] font-medium">Sign out</span>
-            </button>
+            })()}
+
+            {/* Menu Items (visible on mobile only when open, always visible on desktop) */}
+            <div className={`transition-all duration-200 ${mobileMenuOpen ? "absolute top-full left-0 z-40 w-[40vw] min-w-[180px] bg-white border border-[color:var(--border)] shadow-lg lg:static lg:w-full lg:shadow-none lg:border-0 block" : "hidden lg:block"}`}>
+              {NAV.map((item) => {
+                const Icon = item.icon;
+                const active = tab === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => {
+                      setTab(item.key);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`group w-full flex items-center gap-3 px-5 py-4 text-sm border-l-2 transition-all ${
+                      active
+                        ? "border-[color:var(--saffron)] bg-[color:var(--saffron)]/10 text-[color:var(--ink)]"
+                        : "border-transparent text-muted-foreground hover:text-[color:var(--ink)] hover:bg-black/[0.02]"
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 ${active ? "text-[color:var(--saffron)]" : ""}`} />
+                    <span className="uppercase tracking-widest text-[11px] font-medium">{item.label}</span>
+                    <ChevronRight className={`ml-auto h-3.5 w-3.5 transition-transform ${active ? "translate-x-0.5 text-[color:var(--saffron)]" : "opacity-0 group-hover:opacity-100"}`} />
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => {
+                  logout();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-5 py-4 text-sm border-l-2 border-transparent text-muted-foreground hover:text-red-700 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="uppercase tracking-widest text-[11px] font-medium">Sign out</span>
+              </button>
+            </div>
           </nav>
         </aside>
 

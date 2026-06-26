@@ -53,7 +53,42 @@ export const Route = createFileRoute("/product/$slug")({
 });
 
 function ProductPage() {
-  const { product, related } = Route.useLoaderData();
+  const { product: initialProduct, related: initialRelated } = Route.useLoaderData();
+  const [product, setProduct] = useState(initialProduct);
+  const [related, setRelated] = useState(initialRelated);
+
+  useEffect(() => {
+    setProduct(initialProduct);
+    setRelated(initialRelated);
+  }, [initialProduct, initialRelated]);
+
+  useEffect(() => {
+    const unsubProduct = productService.subscribeProductBySlug(initialProduct.slug, (updatedProduct) => {
+      if (updatedProduct) setProduct(updatedProduct);
+    });
+    return unsubProduct;
+  }, [initialProduct.slug]);
+
+  // Ensure scroll is reset to the top when navigating between different products
+  useEffect(() => {
+    const scrollToTop = () => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTo(0, 0);
+      document.body.scrollTo(0, 0);
+    };
+
+    scrollToTop();
+    const t1 = setTimeout(scrollToTop, 50);
+    const t2 = setTimeout(scrollToTop, 150);
+    const t3 = setTimeout(scrollToTop, 350);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [product.id]);
+
   return <ProductView product={product} related={related} />;
 }
 
