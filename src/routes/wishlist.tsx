@@ -22,7 +22,7 @@ function WishlistPage() {
   const toggle = useWishlist((s) => s.toggle);
   const [items, setItems] = useState<Product[]>([]);
   useEffect(() => {
-    productService.getProducts().then((all) => {
+    return productService.subscribeProducts((all) => {
       const activeProducts = all.filter((p) => ids.includes(p.id));
       setItems(activeProducts);
       

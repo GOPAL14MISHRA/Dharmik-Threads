@@ -109,7 +109,10 @@ function rebuildCustomers() {
     }
   });
 
-  state.customers = Array.from(customerMap.values());
+  state = {
+    ...state,
+    customers: Array.from(customerMap.values()),
+  };
   notify();
 }
 
@@ -117,16 +120,17 @@ function rebuildCustomers() {
 if (typeof window !== "undefined") {
   // Listen to Products
   onSnapshot(collection(db, "products"), (snapshot) => {
-    state.products = snapshot.docs.map((docSnapshot) => {
+    const products = snapshot.docs.map((docSnapshot) => {
       const data = docSnapshot.data();
       return { id: docSnapshot.id, ...data } as Product;
     });
+    state = { ...state, products };
     notify();
   });
 
   // Listen to Orders
   onSnapshot(collection(db, "orders"), (snapshot) => {
-    state.orders = snapshot.docs.map((docSnapshot) => {
+    const orders = snapshot.docs.map((docSnapshot) => {
       const data = docSnapshot.data();
       let placedAt = "";
       if (data.createdAt) {
@@ -148,12 +152,13 @@ if (typeof window !== "undefined") {
         placedAt,
       } as unknown as Order;
     }).sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime());
+    state = { ...state, orders };
     rebuildCustomers();
   });
 
   // Listen to Coupons
   onSnapshot(collection(db, "coupons"), (snapshot) => {
-    state.coupons = snapshot.docs.map((docSnapshot) => {
+    const coupons = snapshot.docs.map((docSnapshot) => {
       const data = docSnapshot.data();
       return {
         code: docSnapshot.id,
@@ -165,6 +170,7 @@ if (typeof window !== "undefined") {
         isPublic: data.isPublic !== false,
       } as Coupon;
     });
+    state = { ...state, coupons };
     notify();
   });
 
@@ -179,10 +185,11 @@ if (typeof window !== "undefined") {
 
   // Listen to Newsletter Subscribers
   onSnapshot(collection(db, "newsletter"), (snapshot) => {
-    state.subscribers = snapshot.docs.map((docSnapshot) => ({
+    const subscribers = snapshot.docs.map((docSnapshot) => ({
       email: docSnapshot.id,
       ...docSnapshot.data(),
     }));
+    state = { ...state, subscribers };
     notify();
   });
 }
@@ -210,7 +217,6 @@ export const adminStore = {
     try {
       const productRef = doc(db, "products", p.id);
       await setDoc(productRef, p);
-      toast.success(`Product "${p.title}" saved to database.`);
       
       // Dispatch subscriber notifications
       toast.promise(
@@ -235,7 +241,6 @@ export const adminStore = {
     try {
       const productRef = doc(db, "products", id);
       await updateDoc(productRef, patch);
-      toast.success("Product updated in database.");
     } catch (error: any) {
       console.error("Error updating product in Firestore:", error);
       toast.error(`Database Error: ${error.message}`);
@@ -245,7 +250,6 @@ export const adminStore = {
     try {
       const productRef = doc(db, "products", id);
       await deleteDoc(productRef);
-      toast.success("Product deleted from database.");
     } catch (error: any) {
       console.error("Error deleting product from Firestore:", error);
       toast.error(`Database Error: ${error.message}`);
@@ -257,7 +261,6 @@ export const adminStore = {
     try {
       const orderRef = doc(db, "orders", orderId);
       await updateDoc(orderRef, { orderStatus: status });
-      toast.success(`Order #${orderId} status set to ${status} in database.`);
     } catch (error: any) {
       console.error("Error updating order status in Firestore:", error);
       toast.error(`Database Error: ${error.message}`);
@@ -280,7 +283,6 @@ export const adminStore = {
         active: c.active,
         isPublic: c.isPublic ?? true,
       });
-      toast.success(`Coupon "${c.code}" saved to database.`);
     } catch (error: any) {
       console.error("Error writing coupon to Firestore:", error);
       toast.error(`Database Error: ${error.message}`);
@@ -292,7 +294,6 @@ export const adminStore = {
       if (existing) {
         const couponRef = doc(db, "coupons", code);
         await updateDoc(couponRef, { active: !existing.active });
-        toast.success(`Coupon ${code} status toggled in database.`);
       }
     } catch (error: any) {
       console.error("Error toggling coupon in Firestore:", error);
@@ -305,7 +306,6 @@ export const adminStore = {
       if (existing) {
         const couponRef = doc(db, "coupons", code);
         await updateDoc(couponRef, { isPublic: !existing.isPublic });
-        toast.success(`Coupon ${code} target group updated in database.`);
       }
     } catch (error: any) {
       console.error("Error toggling coupon public status in Firestore:", error);
@@ -316,7 +316,6 @@ export const adminStore = {
     try {
       const couponRef = doc(db, "coupons", code);
       await deleteDoc(couponRef);
-      toast.success("Coupon removed from database.");
     } catch (error: any) {
       console.error("Error deleting coupon from Firestore:", error);
       toast.error(`Database Error: ${error.message}`);
@@ -345,7 +344,6 @@ export const adminStore = {
           isPublic: cp.isPublic ?? true,
         });
       }
-      toast.success("Database re-seeded with demo data successfully.");
     } catch (error: any) {
       console.error("Error seeding Firestore demo data:", error);
       toast.error(`Database Seed Error: ${error.message}`);

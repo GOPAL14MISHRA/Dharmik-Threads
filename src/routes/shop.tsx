@@ -28,7 +28,7 @@ function Shop() {
   const itemsPerPage = 6;
 
   useEffect(() => {
-    productService.getProducts().then(setItems);
+    return productService.subscribeProducts(setItems);
   }, []);
 
   // Reset page when filters change

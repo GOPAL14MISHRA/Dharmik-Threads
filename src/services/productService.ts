@@ -1,9 +1,5 @@
-import { collection, getDocs, query, where, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase/firestore";
 import { collections, categories } from "@/lib/data/products";
 import type { Product, Category, Collection } from "@/lib/types";
-
-const productsRef = collection(db, "products");
 
 function mapProductDoc(doc: any): Product {
   // ── Backward compatibility: old docs have flat price/images/colors/sizes ──
@@ -50,46 +46,39 @@ function mapProductDoc(doc: any): Product {
 
 export const productService = {
   async getProducts(filters?: { category?: Category; collection?: Collection; q?: string }) {
-    const clauses: any[] = [];
-    if (filters?.category) clauses.push(where("category", "==", filters.category));
-    if (filters?.collection) clauses.push(where("collection", "==", filters.collection));
+    const params = new URLSearchParams();
+    if (filters?.category) params.append("category", filters.category);
+    if (filters?.collection) params.append("collection", filters.collection);
+    if (filters?.q) params.append("q", filters.q);
 
-    const productsQuery = clauses.length ? query(productsRef, ...clauses) : productsRef;
-    const snapshot = await getDocs(productsQuery);
-    let list = snapshot.docs.map((doc) => mapProductDoc({ id: doc.id, ...doc.data() }));
-
-    if (filters?.q) {
-      const q = filters.q.toLowerCase();
-      list = list.filter((product) =>
-        product.title.toLowerCase().includes(q) || product.description.toLowerCase().includes(q),
-      );
-    }
-
-    return list;
+    const res = await fetch(`/api/get_products.php?${params.toString()}`);
+    const data = res.ok ? await res.json() : [];
+    return data.map(mapProductDoc);
   },
 
   async getBySlug(slug: string) {
-    const snapshot = await getDocs(query(productsRef, where("slug", "==", slug), limit(1)));
-    if (snapshot.empty) return null;
-    return mapProductDoc({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+    const res = await fetch(`/api/get_product_by_slug.php?slug=${slug}`);
+    const data = res.ok ? await res.json() : null;
+    if (!data) return null;
+    return mapProductDoc(data);
   },
 
   async getBestSellers() {
-    const snapshot = await getDocs(query(productsRef, where("isBestSeller", "==", true)));
-    return snapshot.docs.map((doc) => mapProductDoc({ id: doc.id, ...doc.data() }));
+    const res = await fetch("/api/get_best_sellers.php");
+    const data = res.ok ? await res.json() : [];
+    return data.map(mapProductDoc);
   },
 
   async getNewArrivals() {
-    const snapshot = await getDocs(query(productsRef, where("isNew", "==", true)));
-    return snapshot.docs.map((doc) => mapProductDoc({ id: doc.id, ...doc.data() }));
+    const res = await fetch("/api/get_new_arrivals.php");
+    const data = res.ok ? await res.json() : [];
+    return data.map(mapProductDoc);
   },
 
   async getRelated(slug: string) {
-    const snapshot = await getDocs(query(productsRef, limit(10)));
-    return snapshot.docs
-      .map((doc) => mapProductDoc({ id: doc.id, ...doc.data() }))
-      .filter((product) => product.slug !== slug)
-      .slice(0, 4);
+    const res = await fetch(`/api/get_related_products.php?slug=${slug}`);
+    const data = res.ok ? await res.json() : [];
+    return data.map(mapProductDoc);
   },
 
   async getCollections() {
@@ -98,6 +87,60 @@ export const productService = {
 
   async getCategories() {
     return [...categories];
+  },
+
+  subscribeProducts(callback: (products: Product[]) => void, filters?: { category?: Category; collection?: Collection }) {
+    let active = true;
+    const fetchIt = async () => {
+      try {
+        const products = await this.getProducts(filters);
+        if (active) callback(products);
+      } catch (err) {
+        console.error("Error subscribing to products:", err);
+      }
+    };
+    fetchIt();
+    const interval = setInterval(fetchIt, 10000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  },
+
+  subscribeProductBySlug(slug: string, callback: (product: Product | null) => void) {
+    let active = true;
+    const fetchIt = async () => {
+      try {
+        const product = await this.getBySlug(slug);
+        if (active) callback(product);
+      } catch (err) {
+        console.error("Error subscribing to product by slug:", err);
+      }
+    };
+    fetchIt();
+    const interval = setInterval(fetchIt, 10000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  },
+
+  subscribeBestSellers(callback: (products: Product[]) => void) {
+    let active = true;
+    const fetchIt = async () => {
+      try {
+        const products = await this.getBestSellers();
+        if (active) callback(products);
+      } catch (err) {
+        console.error("Error subscribing to best sellers:", err);
+      }
+    };
+    fetchIt();
+    const interval = setInterval(fetchIt, 10000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   },
 };
 

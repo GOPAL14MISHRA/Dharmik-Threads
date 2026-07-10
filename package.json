@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "php": "php_bin\\php.exe -S 127.0.0.1:8000 -t public"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

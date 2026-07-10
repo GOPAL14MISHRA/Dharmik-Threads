@@ -7,7 +7,7 @@ import { Link } from "@tanstack/react-router";
 export function BestSellers() {
   const [items, setItems] = useState<Product[]>([]);
   useEffect(() => {
-    productService.getBestSellers().then(setItems);
+    return productService.subscribeBestSellers(setItems);
   }, []);
 
   return (
