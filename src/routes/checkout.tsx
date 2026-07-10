@@ -190,8 +190,9 @@ function CheckoutPage() {
   return (
     <div className="container-luxe py-12 md:py-16">
       <h1 className="font-display text-4xl md:text-5xl">Checkout</h1>
-      <div className="mt-10 grid lg:grid-cols-[1fr_420px] gap-12">
-        <form onSubmit={placeOrder} className="space-y-10">
+      <form onSubmit={placeOrder} className="mt-10 grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-12 items-start">
+        {/* Form Fields Column */}
+        <div className="w-full max-w-md mx-auto lg:max-w-none space-y-10 order-2 lg:order-1">
           <Section title="Contact">
             <Input label="Full name" value={form.fullName} onChange={(v) => setForm({ ...form, fullName: v })} required />
             <Input label="Email address" value={email} onChange={setEmail} required type="email" />
@@ -254,15 +255,16 @@ function CheckoutPage() {
           >
             {loading ? "Placing order…" : `Place order · ${inr(total)}`}
           </button>
-        </form>
+        </div>
 
-        <aside className="bg-card border border-[color:var(--border)] p-6 md:p-8 h-fit lg:sticky lg:top-28">
+        {/* Order Summary Sidebar */}
+        <aside className="w-full max-w-md mx-auto lg:max-w-none bg-card border border-[color:var(--border)] p-6 md:p-8 h-fit lg:sticky lg:top-28 order-1 lg:order-2">
           <p className="eyebrow mb-5">Order summary</p>
           <div className="space-y-4 max-h-80 overflow-y-auto">
             {items.map((it) => {
               const { filterStyle, overlayElement } = getCheckoutItemImageStyleAndOverlay(it.color);
               return (
-                <div key={it.productId + it.size + it.color} className="flex gap-3">
+                <div key={it.productId + it.size + it.color} className="flex gap-3 items-center">
                   <div className="relative size-16 shrink-0 overflow-hidden bg-muted">
                     <img src={it.image} alt="" className="size-full object-cover" style={{ filter: filterStyle }} loading="lazy" />
                     {overlayElement}
@@ -271,7 +273,7 @@ function CheckoutPage() {
                     <p className="text-sm font-medium truncate">{it.title}</p>
                     <p className="text-xs text-muted-foreground">{it.size} · {it.color} · ×{it.quantity}</p>
                   </div>
-                  <p className="text-sm font-semibold">{inr(it.price * it.quantity)}</p>
+                  <p className="text-sm font-semibold shrink-0">{inr(it.price * it.quantity)}</p>
                 </div>
               );
             })}
@@ -351,7 +353,7 @@ function CheckoutPage() {
             </div>
           </div>
         </aside>
-      </div>
+      </form>
     </div>
   );
 }

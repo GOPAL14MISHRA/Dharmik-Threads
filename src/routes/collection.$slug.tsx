@@ -25,7 +25,7 @@ function CollectionPage() {
   const [items, setItems] = useState<Product[]>([]);
 
   useEffect(() => {
-    productService.getProducts({ collection: slug as Collection }).then(setItems);
+    return productService.subscribeProducts(setItems, { collection: slug as Collection });
   }, [slug]);
 
   return (

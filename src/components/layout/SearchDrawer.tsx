@@ -17,8 +17,9 @@ export function SearchDrawer() {
   useEffect(() => {
     if (open) {
       setQuery("");
-      productService.getProducts().then(setDbProducts);
+      const unsubscribe = productService.subscribeProducts(setDbProducts);
       setTimeout(() => inputRef.current?.focus(), 50);
+      return unsubscribe;
     }
   }, [open]);
 

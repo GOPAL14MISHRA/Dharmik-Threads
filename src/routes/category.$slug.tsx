@@ -25,7 +25,7 @@ function CategoryPage() {
   const [items, setItems] = useState<Product[]>([]);
 
   useEffect(() => {
-    productService.getProducts({ category: slug as Category }).then(setItems);
+    return productService.subscribeProducts(setItems, { category: slug as Category });
   }, [slug]);
 
   return (

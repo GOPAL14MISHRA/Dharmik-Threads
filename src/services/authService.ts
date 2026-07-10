@@ -7,9 +7,7 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth } from "@/lib/firebase/auth";
-import { db } from "@/lib/firebase/firestore";
 import type { User } from "@/lib/types";
 
 function mapUser(user: any, docData: any): User {
@@ -28,9 +26,9 @@ function mapUser(user: any, docData: any): User {
 export const authService = {
   async login(email: string, password: string) {
     const credential = await signInWithEmailAndPassword(auth, email, password);
-    const userRef = doc(db, "users", credential.user.uid);
-    const userDoc = await getDoc(userRef);
-    const user = mapUser(credential.user, userDoc.exists() ? userDoc.data() : null);
+    const res = await fetch(`/api/get_user.php?uid=${credential.user.uid}`);
+    const userDocData = res.ok ? await res.json() : null;
+    const user = mapUser(credential.user, userDocData);
     return { user, token: await credential.user.getIdToken() };
   },
 
@@ -48,14 +46,18 @@ export const authService = {
       orders: 0,
       spent: 0,
     };
-    await setDoc(doc(db, "users", user.id), {
-      uid: user.id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      addresses: user.addresses,
-      createdAt: serverTimestamp(),
-      role: "customer",
+    await fetch("/api/create_user.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        addresses: user.addresses,
+        createdAt: new Date().toISOString(),
+        role: "customer",
+      }),
     });
     return { user, token: await credential.user.getIdToken() };
   },
@@ -76,20 +78,25 @@ export const authService = {
       console.log("Google OAuth sign-in initiated");
 
       const credential = await signInWithPopup(auth, provider);
-      const userRef = doc(db, "users", credential.user.uid);
-      const userDoc = await getDoc(userRef);
-      if (!userDoc.exists()) {
-        await setDoc(userRef, {
+      const res = await fetch(`/api/get_user.php?uid=${credential.user.uid}`);
+      let userDocData = res.ok ? await res.json() : null;
+      if (!userDocData) {
+        userDocData = {
           uid: credential.user.uid,
           name: credential.user.displayName ?? "",
           email: credential.user.email ?? "",
           phone: credential.user.phoneNumber ?? "",
           addresses: [],
-          createdAt: serverTimestamp(),
+          createdAt: new Date().toISOString(),
           role: "customer",
+        };
+        await fetch("/api/create_user.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(userDocData),
         });
       }
-      const user = mapUser(credential.user, userDoc.exists() ? userDoc.data() : null);
+      const user = mapUser(credential.user, userDocData);
       return { user, token: await credential.user.getIdToken() };
     } catch (err: any) {
       // Surface Firebase error details for debugging in the UI/console.
@@ -106,8 +113,8 @@ export const authService = {
   async getCurrentUser(): Promise<User | null> {
     const firebaseUser = auth.currentUser;
     if (!firebaseUser) return null;
-    const userRef = doc(db, "users", firebaseUser.uid);
-    const userDoc = await getDoc(userRef);
-    return mapUser(firebaseUser, userDoc.exists() ? userDoc.data() : null);
+    const res = await fetch(`/api/get_user.php?uid=${firebaseUser.uid}`);
+    const userDocData = res.ok ? await res.json() : null;
+    return mapUser(firebaseUser, userDocData);
   },
 };

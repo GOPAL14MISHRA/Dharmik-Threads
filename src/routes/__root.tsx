@@ -7,6 +7,7 @@ import {
   useLocation,
   HeadContent,
   Scripts,
+  ScrollRestoration,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { onAuthStateChanged } from "firebase/auth";
@@ -125,16 +126,35 @@ function RootComponent() {
   }, []);
 
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [location.pathname]);
+    const scrollToTop = () => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTo(0, 0);
+      document.body.scrollTo(0, 0);
+    };
+
+    // Scroll immediately to the top
+    scrollToTop();
+
+    // Deferred scroll events to compensate for rendering delays
+    const timer1 = setTimeout(scrollToTop, 50);
+    const timer2 = setTimeout(scrollToTop, 150);
+    const timer3 = setTimeout(scrollToTop, 400);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+    };
+  }, [location.key]);
 
   const isHideLayout = (location.pathname === "/account" && !currentUser) || location.pathname.startsWith("/admin");
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ScrollRestoration />
       <SplashScreen />
       {!isHideLayout && <Header />}
-      <main>
+      <main className="w-full overflow-x-hidden">
         <Outlet />
       </main>
       {!isHideLayout && <Footer />}
