@@ -83,11 +83,9 @@ function AdminPage() {
     setMobileSidebarOpen(false);
   }, [tab]);
 
-  if (!authed) return <AdminLogin onAuthed={() => setAuthed(true)} />;
-
-  return (
-    <div className="min-h-screen bg-[#FAF9F5] text-stone-855 font-sans antialiased relative">
-      <div className="grid lg:grid-cols-[240px_minmax(0,1fr)] min-h-screen">
+  if (!authed) return <AdminLogin onAuthed={() => setAuthed(true)} />;  return (
+    <div className="h-screen overflow-hidden bg-[#FAF9F5] text-stone-855 font-sans antialiased relative">
+      <div className="grid grid-rows-[auto_1fr] lg:grid-rows-none lg:grid-cols-[240px_minmax(0,1fr)] h-screen overflow-hidden">
         {/* Mobile Header Bar */}
         <header className="lg:hidden sticky top-0 z-20 flex items-center justify-between px-6 py-4 bg-[#F5F4F0] border-b border-stone-200 col-span-full">
           <div className="flex items-center gap-3">
@@ -113,7 +111,7 @@ function AdminPage() {
         )}
 
         {/* Sidebar */}
-        <aside className={`fixed inset-y-0 left-0 z-40 w-60 border-r border-stone-200 bg-[#F5F4F0] transform transition-transform duration-300 lg:translate-x-0 lg:static lg:h-screen flex flex-col justify-between ${
+        <aside className={`fixed inset-y-0 left-0 z-40 w-60 border-r border-stone-200 bg-[#F5F4F0] transform transition-transform duration-300 lg:translate-x-0 lg:static lg:h-full flex flex-col justify-between ${
           mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}>
           <div>
@@ -161,7 +159,7 @@ function AdminPage() {
         </aside>
 
         {/* Main */}
-        <main ref={mainRef} className="min-w-0 bg-[#FAF9F5] overflow-y-auto">
+        <main ref={mainRef} className="min-w-0 bg-[#FAF9F5] h-full overflow-y-auto">
           {tab === "dashboard" && (
             <Dashboard
               onNav={setTab}
@@ -342,7 +340,7 @@ function Dashboard({
 
       <div className="grid sm:grid-cols-3 gap-4 mt-8">
         <MiniCard label="Active coupons" value={String(coupons.filter((c) => c.active).length)} sub={`${coupons.length} total`} />
-        <MiniCard label="Low stock" value={String(products.filter((p) => getTotalStock(p) < 5).length)} sub="below 5 units" />
+        <MiniCard label="Low stock" value={String(products.filter((p) => (p.variants[0]?.sizes[0]?.stock ?? 0) < 5).length)} sub="below 5 units" />
         <MiniCard label="Collections" value={String(new Set(products.map((p) => p.collection)).size)} sub="active lines" />
       </div>
     </div>
@@ -486,7 +484,7 @@ function ProductsView() {
                 <td className="px-4 py-3 text-stone-600 font-medium capitalize hidden md:table-cell">{p.category}</td>
                 <td className="px-4 py-3 text-right text-stone-800 font-semibold">₹{getBasePrice(p).toLocaleString("en-IN")}</td>
                 <td className="px-4 py-3 text-right">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getTotalStock(p) < 5 ? "bg-red-50 text-red-650" : "bg-stone-100 text-stone-650"}`}>{getTotalStock(p)}</span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${(p.variants[0]?.sizes[0]?.stock ?? 0) < 5 ? "bg-red-50 text-red-650" : "bg-stone-100 text-stone-650"}`}>{p.variants[0]?.sizes[0]?.stock ?? 0}</span>
                 </td>
                 <td className="px-4 py-3 text-right whitespace-nowrap">
                   <button onClick={() => setEditing(p)} className="text-[10px] uppercase tracking-widest font-bold text-[color:var(--saffron)] hover:text-amber-605 transition-colors mr-3">Edit</button>
@@ -494,7 +492,6 @@ function ProductsView() {
                     onClick={() => {
                       if (confirm(`Delete "${p.title}"?`)) {
                         adminStore.deleteProduct(p.id);
-                        toast.success("Product deleted");
                       }
                     }}
                     className="text-stone-400 hover:text-red-500 transition-colors inline-flex items-center align-middle"
@@ -694,13 +691,14 @@ function ProductDrawer({ product, onClose }: { product: Product | null; onClose:
                 />
               </label>
               <NumField
-                label="Stock (first size)"
+                label="Edit stock"
                 value={firstSize?.stock ?? 0}
                 onChange={(v) => setForm({
                   ...form,
-                  variants: form.variants.map((vt, vi) =>
-                    vi === 0 ? { ...vt, sizes: vt.sizes.map((s, si) => si === 0 ? { ...s, stock: v } : s) } : vt
-                  ),
+                  variants: form.variants.map((vt) => ({
+                    ...vt,
+                    sizes: vt.sizes.map((s) => ({ ...s, stock: v }))
+                  })),
                 })}
               />
             </div>
@@ -746,10 +744,13 @@ function NumField({ label, value, onChange }: { label: string; value: number; on
     <label className="block text-left">
       <span className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">{label}</span>
       <input
-        type="number"
+        type="text"
         value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-1.5 w-full bg-white border border-stone-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[color:var(--saffron)] focus:ring-1 focus:ring-[color:var(--saffron)]/10 transition-all duration-300 text-stone-850"
+        onChange={(e) => {
+          const cleanVal = e.target.value.replace(/\D/g, "");
+          onChange(cleanVal ? parseInt(cleanVal, 10) : 0);
+        }}
+        className="mt-1.5 w-full bg-white border border-stone-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[color:var(--saffron)] focus:ring-1 focus:ring-[color:var(--saffron)]/10 transition-all duration-300 text-stone-855"
       />
     </label>
   );
@@ -860,7 +861,6 @@ function OrderRow({ order }: { order: Order }) {
             value={order.orderStatus}
             onChange={(e) => {
               adminStore.updateOrderStatus(order.orderId, e.target.value as OrderStatus);
-              toast.success(`Order ${order.orderId} → ${e.target.value}`);
             }}
             className="bg-stone-55 border border-stone-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[color:var(--saffron)] focus:ring-1 focus:ring-[color:var(--saffron)]/10 transition-all text-stone-700 font-medium capitalize"
           >
@@ -1186,6 +1186,7 @@ function BlogsView() {
   const [customBlogs, setCustomBlogs] = useState<any[]>([]);
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
+  const [editingBlog, setEditingBlog] = useState<any | null>(null);
   const [selectedBlog, setSelectedBlog] = useState<any | null>(null);
 
   // Form states
@@ -1239,7 +1240,33 @@ function BlogsView() {
 
   const filtered = allBlogs.filter((b) => b.title.toLowerCase().includes(q.toLowerCase()));
 
-  async function handlePublishBlog(e: React.FormEvent) {
+  function openCreate() {
+    setEditingBlog(null);
+    setTitle("");
+    setCategory("Culture");
+    setAuthor("Dharmik Atelier");
+    setReadTime("5 min read");
+    setExcerpt("");
+    setContentText("");
+    setCreating(true);
+  }
+
+  function openEdit(blog: any) {
+    setEditingBlog(blog);
+    setTitle(blog.title);
+    setCategory(blog.category);
+    setAuthor(blog.author);
+    setReadTime(blog.readTime);
+    setExcerpt(blog.excerpt || "");
+    const paragraphs = (blog.content || [])
+      .filter((c: any) => c.type === "paragraph")
+      .map((c: any) => c.text)
+      .join("\n\n");
+    setContentText(paragraphs);
+    setCreating(true);
+  }
+
+  async function handleSaveBlog(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !contentText.trim()) {
       toast.error("Title and Content are required");
@@ -1247,39 +1274,42 @@ function BlogsView() {
     }
     setPublishing(true);
     try {
-      const slug = title
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
+      const isEdit = !!editingBlog;
+      const slug = isEdit
+        ? editingBlog.slug
+        : title
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
 
-      const newBlog = {
+      const blogData = {
         id: slug,
         slug,
         title: title.trim(),
         author: author.trim(),
         category: category.trim(),
-        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        date: isEdit ? editingBlog.date : new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
         status: "Published",
         readTime: readTime.trim(),
         excerpt: excerpt.trim() || contentText.trim().substring(0, 120) + "...",
-        content: [{ type: "paragraph", text: contentText.trim() }],
-        imgKey: "hero1",
+        content: contentText.split("\n\n").map(text => ({ type: "paragraph", text: text.trim() })),
+        imgKey: isEdit ? (editingBlog.imgKey || "hero1") : "hero1",
       };
 
-      await setDoc(doc(db, "blogs", slug), newBlog);
-      toast.success("Blog article published to database.");
-
-      // Dispatch notifications to subscribers
-      await notificationService.notifyNewBlog({
-        id: slug,
-        title: newBlog.title,
-        category: newBlog.category,
-        readTime: newBlog.readTime,
-        slug: newBlog.slug,
-        excerpt: newBlog.excerpt,
-      });
-      toast.success("Subscriber email notifications dispatched!");
+      await setDoc(doc(db, "blogs", slug), blogData);
+      
+      if (!isEdit) {
+        // Dispatch notifications to subscribers for NEW articles only
+        await notificationService.notifyNewBlog({
+          id: slug,
+          title: blogData.title,
+          category: blogData.category,
+          readTime: blogData.readTime,
+          slug: blogData.slug,
+          excerpt: blogData.excerpt,
+        });
+      }
 
       // Reset form
       setTitle("");
@@ -1289,9 +1319,10 @@ function BlogsView() {
       setExcerpt("");
       setContentText("");
       setCreating(false);
+      setEditingBlog(null);
     } catch (err: any) {
       console.error(err);
-      toast.error(`Publishing failed: ${err.message}`);
+      toast.error(`Saving failed: ${err.message}`);
     } finally {
       setPublishing(false);
     }
@@ -1303,7 +1334,7 @@ function BlogsView() {
         title="Blogs"
         sub={`${allBlogs.length} articles on our sacred journal.`}
         action={
-          <button onClick={() => setCreating(true)} className="flex items-center gap-2 bg-[color:var(--saffron)] text-[color:var(--ink)] px-5 py-3 text-[10px] uppercase tracking-widest font-bold rounded-lg hover:bg-[color:var(--ink)] hover:text-white transition-all duration-300 shadow cursor-pointer">
+          <button onClick={openCreate} className="flex items-center gap-2 bg-[color:var(--saffron)] text-[color:var(--ink)] px-5 py-3 text-[10px] uppercase tracking-widest font-bold rounded-lg hover:bg-[color:var(--ink)] hover:text-white transition-all duration-300 shadow cursor-pointer">
             <Plus className="h-4 w-4" /> New Article
           </button>
         }
@@ -1334,7 +1365,7 @@ function BlogsView() {
                     </span>
                   </div>
                   <h3 className="font-semibold text-sm truncate mt-1 text-stone-805">{b.title}</h3>
-                  <p className="text-[11px] text-stone-500 mt-0.5">By {b.author} · {b.readTime}</p>
+                  <p className="text-[11px] text-stone-550 mt-0.5">By {b.author} · {b.readTime}</p>
                 </div>
               </div>
               <p className="text-[11px] text-stone-550 mt-3 line-clamp-2 italic">"{b.excerpt}"</p>
@@ -1343,49 +1374,67 @@ function BlogsView() {
             <div className="flex gap-2 mt-4 pt-3 border-t border-stone-100">
               <button onClick={() => setSelectedBlog(b)} className="flex-1 border border-stone-200 py-2 text-[10px] font-bold uppercase tracking-widest text-stone-600 hover:bg-stone-50 rounded-lg transition-colors cursor-pointer">View</button>
               {b.isCustom ? (
-                <button
-                  onClick={async () => {
-                    if (confirm(`Delete "${b.title}"?`)) {
-                      try {
-                        await deleteDoc(doc(db, "blogs", b.id));
-                        toast.success("Article deleted");
-                      } catch (err: any) {
-                        toast.error(`Delete failed: ${err.message}`);
+                <>
+                  <button
+                    onClick={() => openEdit(b)}
+                    className="flex-1 border border-stone-200 py-2 text-[10px] font-bold uppercase tracking-widest text-[color:var(--saffron)] hover:bg-stone-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm(`Delete "${b.title}"?`)) {
+                        try {
+                          await deleteDoc(doc(db, "blogs", b.id));
+                        } catch (err: any) {
+                          toast.error(`Delete failed: ${err.message}`);
+                        }
                       }
-                    }
-                  }}
-                  className="px-4 border border-stone-200 py-2 text-stone-450 hover:text-red-500 hover:border-red-200 rounded-lg transition-colors cursor-pointer"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                    }}
+                    className="px-4 border border-stone-200 py-2 text-stone-450 hover:text-red-500 hover:border-red-200 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </>
               ) : (
-                <button
-                  disabled
-                  className="px-4 border border-stone-100 py-2 text-stone-300 rounded-lg cursor-not-allowed"
-                  title="Static seed content cannot be deleted."
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <>
+                  <button
+                    disabled
+                    className="flex-1 border border-stone-100 py-2 text-stone-300 rounded-lg cursor-not-allowed text-stone-300"
+                    title="Static seed content cannot be edited."
+                  >
+                    Edit
+                  </button>
+                  <button
+                    disabled
+                    className="px-4 border border-stone-100 py-2 text-stone-300 rounded-lg cursor-not-allowed"
+                    title="Static seed content cannot be deleted."
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </>
               )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Creation Modal/Overlay */}
+      {/* Creation/Edit Modal/Overlay */}
       {creating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in text-stone-800">
           <div className="w-full max-w-xl bg-white border border-stone-200 rounded-2xl shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
             <button
-              onClick={() => setCreating(false)}
+              onClick={() => { setCreating(false); setEditingBlog(null); }}
               className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
-            <h2 className="font-display text-xl font-bold mb-1">Publish New Article</h2>
-            <p className="text-xs text-stone-500 mb-6">Write a story to the journal and notify all newsletter subscribers.</p>
+            <h2 className="font-display text-xl font-bold mb-1">{editingBlog ? "Edit Article" : "Publish New Article"}</h2>
+            <p className="text-xs text-stone-500 mb-6">
+              {editingBlog ? "Update this story inside the database." : "Write a story to the journal and notify all newsletter subscribers."}
+            </p>
             
-            <form onSubmit={handlePublishBlog} className="space-y-4">
+            <form onSubmit={handleSaveBlog} className="space-y-4">
               <div>
                 <label className="block text-[10px] uppercase tracking-widest text-stone-500 font-bold mb-1">Title</label>
                 <input
@@ -1445,11 +1494,11 @@ function BlogsView() {
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase tracking-widest text-stone-500 font-bold mb-1">Content Paragraph</label>
+                <label className="block text-[10px] uppercase tracking-widest text-stone-500 font-bold mb-1">Content Paragraph(s)</label>
                 <textarea
                   value={contentText}
                   onChange={(e) => setContentText(e.target.value)}
-                  placeholder="Write the article content..."
+                  placeholder="Write the article content. Separate paragraphs by leaving an empty line."
                   rows={6}
                   className="w-full border border-stone-200 rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:border-[color:var(--saffron)] text-stone-805 bg-white"
                   required
@@ -1459,7 +1508,7 @@ function BlogsView() {
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setCreating(false)}
+                  onClick={() => { setCreating(false); setEditingBlog(null); }}
                   className="flex-1 border border-stone-200 py-3 text-xs uppercase tracking-widest font-bold text-stone-550 rounded-lg hover:bg-stone-50 cursor-pointer"
                 >
                   Cancel
@@ -1469,7 +1518,7 @@ function BlogsView() {
                   disabled={publishing}
                   className="flex-1 bg-[color:var(--saffron)] text-white py-3 text-xs uppercase tracking-widest font-bold rounded-lg hover:bg-[color:var(--ink)] hover:text-white transition-all disabled:opacity-55 cursor-pointer"
                 >
-                  {publishing ? "Publishing..." : "Publish Article"}
+                  {publishing ? "Saving..." : editingBlog ? "Save Changes" : "Publish Article"}
                 </button>
               </div>
             </form>
@@ -1625,9 +1674,6 @@ function CouponsView() {
               <div>
                 <p className="font-display text-2xl tracking-wide font-bold text-stone-800">{c.code}</p>
                 <p className="text-xs text-stone-500 mt-1">{c.description}</p>
-                <p className="text-[10px] font-bold text-stone-450 mt-1.5 uppercase tracking-wider flex items-center gap-1.5">
-                  Type: <span className={c.isPublic ? "text-amber-600" : "text-stone-500"}>{c.isPublic ? "Everyone (Public)" : "Special / New"}</span>
-                </p>
               </div>
               <span className={`text-[9px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full ${c.active ? "bg-emerald-50 text-emerald-650" : "bg-stone-100 text-stone-400"}`}>
                 {c.active ? "Active" : "Disabled"}
@@ -1650,22 +1696,23 @@ function CouponsView() {
             <div className="flex gap-2 mt-4 pt-3 border-t border-stone-100">
               <button
                 onClick={() => {
-                  adminStore.toggleCouponPublic(c.code);
-                  toast.success(`Coupon ${c.code} is now ${!c.isPublic ? "for everyone" : "for special/new customers"}`);
+                  adminStore.toggleCoupon(c.code);
                 }}
-                className="flex-1 border border-stone-200 rounded-lg py-2 text-[10px] font-bold uppercase tracking-widest text-stone-600 hover:bg-stone-50 transition-colors flex items-center justify-center gap-1.5"
+                className={`flex-1 border rounded-lg py-2 text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5 ${
+                  c.active
+                    ? "border-red-200 hover:bg-red-50 text-red-650"
+                    : "border-emerald-200 hover:bg-emerald-50 text-emerald-650"
+                }`}
               >
-                {c.isPublic ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                {c.isPublic ? "Make it Special" : "Make Public"}
+                {c.active ? "Disable" : "Enable"}
               </button>
               <button
                 onClick={() => {
                   if (confirm(`Delete coupon ${c.code}?`)) {
                     adminStore.deleteCoupon(c.code);
-                    toast.success("Coupon deleted");
                   }
                 }}
-                className="px-4 border border-stone-200 rounded-lg py-2 text-stone-400 hover:text-red-500 hover:border-red-200 transition-colors"
+                className="px-4 border border-stone-200 rounded-lg py-2 text-stone-450 hover:text-red-500 hover:border-red-200 transition-colors"
               >
                 <Trash2 className="h-4.5 w-4.5" />
               </button>
@@ -1685,7 +1732,6 @@ function CouponDrawer({ onClose }: { onClose: () => void }) {
   function save() {
     if (!c.code) { toast.error("Code required"); return; }
     adminStore.addCoupon({ ...c, code: c.code.toUpperCase() });
-    toast.success("Coupon added");
     onClose();
   }
 
@@ -1711,16 +1757,19 @@ function CouponDrawer({ onClose }: { onClose: () => void }) {
             
             <div className="flex items-center justify-between p-4 bg-white border border-stone-200 rounded-xl mt-2">
               <div>
-                <p className="text-xs font-bold text-stone-700 uppercase tracking-wider">Target Audience</p>
-                <p className="text-[10px] text-stone-450 mt-0.5">{c.isPublic ? "This coupon is for everyone" : "Only for special / new customers"}</p>
+                <p className="text-xs font-bold text-stone-700 uppercase tracking-wider">Initial Status</p>
+                <p className="text-[10px] text-stone-450 mt-0.5">{c.active ? "Coupon is active immediately" : "Coupon is created as disabled"}</p>
               </div>
               <button
                 type="button"
-                onClick={() => setC({ ...c, isPublic: !c.isPublic })}
-                className="px-3.5 py-2 border border-stone-200 hover:border-[color:var(--saffron)] rounded-lg text-stone-500 hover:text-[color:var(--saffron)] transition-colors cursor-pointer flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider bg-white"
+                onClick={() => setC({ ...c, active: !c.active })}
+                className={`px-4 py-2 border rounded-lg transition-colors cursor-pointer text-[10px] font-bold uppercase tracking-wider bg-white ${
+                  c.active
+                    ? "border-emerald-200 text-emerald-600 hover:border-emerald-300"
+                    : "border-stone-200 text-stone-500 hover:border-stone-300"
+                }`}
               >
-                {c.isPublic ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                {c.isPublic ? "Everyone" : "Special"}
+                {c.active ? "Active" : "Disabled"}
               </button>
             </div>
           </div>
