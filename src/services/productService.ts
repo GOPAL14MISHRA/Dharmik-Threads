@@ -1,5 +1,7 @@
 import { collections, categories } from "@/lib/data/products";
 import type { Product, Category, Collection } from "@/lib/types";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase/firestore";
 
 function mapProductDoc(doc: any): Product {
   // ── Backward compatibility: old docs have flat price/images/colors/sizes ──
@@ -44,41 +46,67 @@ function mapProductDoc(doc: any): Product {
   };
 }
 
+async function getFirestoreProducts(): Promise<Product[]> {
+  const snapshot = await getDocs(collection(db, "products"));
+  return snapshot.docs.map((item) => mapProductDoc({ id: item.id, ...item.data() }));
+}
+
+async function getApiProducts(filters?: { category?: Category; collection?: Collection; q?: string }) {
+  const params = new URLSearchParams();
+  if (filters?.category) params.append("category", filters.category);
+  if (filters?.collection) params.append("collection", filters.collection);
+  if (filters?.q) params.append("q", filters.q);
+  const res = await fetch(`/api/get_products.php?${params.toString()}`);
+  return res.ok ? (await res.json()).map(mapProductDoc) : [];
+}
+
 export const productService = {
   async getProducts(filters?: { category?: Category; collection?: Collection; q?: string }) {
-    const params = new URLSearchParams();
-    if (filters?.category) params.append("category", filters.category);
-    if (filters?.collection) params.append("collection", filters.collection);
-    if (filters?.q) params.append("q", filters.q);
-
-    const res = await fetch(`/api/get_products.php?${params.toString()}`);
-    const data = res.ok ? await res.json() : [];
-    return data.map(mapProductDoc);
+    try {
+      let products = await getFirestoreProducts();
+      if (filters?.category) products = products.filter((product) => product.category === filters.category);
+      if (filters?.collection) products = products.filter((product) => product.collection === filters.collection);
+      if (filters?.q) {
+        const query = filters.q.toLowerCase();
+        products = products.filter((product) =>
+          product.title.toLowerCase().includes(query) || product.description.toLowerCase().includes(query),
+        );
+      }
+      return products;
+    } catch (error) {
+      console.warn("Firestore products unavailable, using API fallback:", error);
+      return getApiProducts(filters);
+    }
   },
 
   async getBySlug(slug: string) {
-    const res = await fetch(`/api/get_product_by_slug.php?slug=${slug}`);
-    const data = res.ok ? await res.json() : null;
-    if (!data) return null;
-    return mapProductDoc(data);
+    try {
+      const products = await getFirestoreProducts();
+      return products.find((product) => product.slug === slug) ?? null;
+    } catch (error) {
+      console.warn("Firestore product unavailable, using API fallback:", error);
+      const res = await fetch(`/api/get_product_by_slug.php?slug=${encodeURIComponent(slug)}`);
+      const data = res.ok ? await res.json() : null;
+      return data ? mapProductDoc(data) : null;
+    }
   },
 
   async getBestSellers() {
-    const res = await fetch("/api/get_best_sellers.php");
-    const data = res.ok ? await res.json() : [];
-    return data.map(mapProductDoc);
+    const products = await this.getProducts();
+    return products.filter((product) => product.isBestSeller);
   },
 
   async getNewArrivals() {
-    const res = await fetch("/api/get_new_arrivals.php");
-    const data = res.ok ? await res.json() : [];
-    return data.map(mapProductDoc);
+    const products = await this.getProducts();
+    return products.filter((product) => product.isNew);
   },
 
   async getRelated(slug: string) {
-    const res = await fetch(`/api/get_related_products.php?slug=${slug}`);
-    const data = res.ok ? await res.json() : [];
-    return data.map(mapProductDoc);
+    const current = await this.getBySlug(slug);
+    const products = await this.getProducts();
+    return products.filter((product) =>
+      product.slug !== slug && current && product.collection === current.collection,
+    );
   },
 
   async getCollections() {

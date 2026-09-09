@@ -8,6 +8,8 @@ import { collection, onSnapshot, doc, setDoc, deleteDoc } from "firebase/firesto
 import { db } from "@/lib/firebase/firestore";
 import { BLOG_POSTS } from "@/lib/blogData";
 import { notificationService } from "@/services/notificationService";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { auth, authReady } from "@/lib/firebase/auth";
 import {
   LayoutDashboard,
   Package,
@@ -41,8 +43,6 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-const ADMIN_USER = "admin";
-const ADMIN_PASS = "dharmik123";
 const SESSION_KEY = "dharmik_admin_session";
 
 type TabKey = "dashboard" | "products" | "orders" | "customers" | "blogs" | "coupons";
@@ -72,7 +72,9 @@ function AdminPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setAuthed(sessionStorage.getItem(SESSION_KEY) === "1");
+      authReady.then(() => {
+        setAuthed(Boolean(auth.currentUser) && sessionStorage.getItem(SESSION_KEY) === "1");
+      });
     }
   }, []);
 
@@ -150,7 +152,11 @@ function AdminPage() {
           
           <div className="p-3 border-t border-stone-200 mt-auto">
             <button
-              onClick={() => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); }}
+              onClick={async () => {
+                await signOut(auth);
+                sessionStorage.removeItem(SESSION_KEY);
+                setAuthed(false);
+              }}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs uppercase tracking-widest font-bold text-stone-500 hover:text-red-650 hover:bg-red-50/50 transition-colors"
             >
               <LogOut className="h-4 w-4" /> Sign out
@@ -187,17 +193,24 @@ function AdminPage() {
 
 /* ---------------- Login ---------------- */
 function AdminLogin({ onAuthed }: { onAuthed: () => void }) {
-  const [u, setU] = useState("");
+  const [email, setEmail] = useState("");
   const [p, setP] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (u === ADMIN_USER && p === ADMIN_PASS) {
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), p);
       sessionStorage.setItem(SESSION_KEY, "1");
       toast.success("Welcome, admin.");
       onAuthed();
-    } else {
-      toast.error("Invalid credentials");
+      window.location.reload();
+    } catch (error: any) {
+      console.error("Admin Firebase login failed:", error);
+      toast.error(error?.code === "auth/invalid-credential" ? "Invalid admin email or password" : error?.message ?? "Admin login failed");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -220,13 +233,13 @@ function AdminLogin({ onAuthed }: { onAuthed: () => void }) {
           </div>
         </div>
         <form onSubmit={submit} className="mt-8 space-y-4">
-          <Field label="Username" value={u} onChange={setU} />
+          <Field label="Admin email" value={email} onChange={setEmail} type="email" />
           <Field label="Password" value={p} onChange={setP} type="password" />
-          <button className="w-full bg-[color:var(--ink)] text-[color:var(--ivory)] py-3 text-[10px] uppercase tracking-[0.25em] font-bold rounded shadow-md hover:bg-[color:var(--saffron)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 mt-2">
-            Sign in
+          <button disabled={loading} className="w-full bg-[color:var(--ink)] text-[color:var(--ivory)] py-3 text-[10px] uppercase tracking-[0.25em] font-bold rounded shadow-md hover:bg-[color:var(--saffron)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 mt-2 disabled:opacity-60">
+            {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-        <p className="mt-6 text-[10px] text-stone-400 text-center font-bold uppercase tracking-wider">Demo · admin / dharmik123</p>
+        <p className="mt-6 text-[10px] text-stone-400 text-center font-bold uppercase tracking-wider">Use your Firebase admin account</p>
       </div>
     </div>
   );

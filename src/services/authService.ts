@@ -8,6 +8,9 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase/auth";
+import { authReady } from "@/lib/firebase/auth";
+import { db } from "@/lib/firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import type { User } from "@/lib/types";
 
 function mapUser(user: any, docData: any): User {
@@ -23,12 +26,40 @@ function mapUser(user: any, docData: any): User {
   };
 }
 
+async function getUserProfile(uid: string) {
+  try {
+    const snapshot = await getDoc(doc(db, "users", uid));
+    return snapshot.exists() ? snapshot.data() : null;
+  } catch (error) {
+    console.warn("User profile could not be loaded from Firestore:", error);
+    return null;
+  }
+}
+
+async function saveUserProfile(user: User, role = "customer") {
+  try {
+    await setDoc(doc(db, "users", user.id), {
+      uid: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone ?? "",
+      addresses: user.addresses,
+      joinedAt: user.joinedAt ?? new Date().toISOString(),
+      orders: user.orders ?? 0,
+      spent: user.spent ?? 0,
+      role,
+    }, { merge: true });
+  } catch (error) {
+    console.warn("User profile could not be saved to Firestore:", error);
+  }
+}
+
 export const authService = {
   async login(email: string, password: string) {
     const credential = await signInWithEmailAndPassword(auth, email, password);
-    const res = await fetch(`/api/get_user.php?uid=${credential.user.uid}`);
-    const userDocData = res.ok ? await res.json() : null;
+    const userDocData = await getUserProfile(credential.user.uid);
     const user = mapUser(credential.user, userDocData);
+    await saveUserProfile(user);
     return { user, token: await credential.user.getIdToken() };
   },
 
@@ -46,19 +77,7 @@ export const authService = {
       orders: 0,
       spent: 0,
     };
-    await fetch("/api/create_user.php", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uid: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        addresses: user.addresses,
-        createdAt: new Date().toISOString(),
-        role: "customer",
-      }),
-    });
+    await saveUserProfile(user);
     return { user, token: await credential.user.getIdToken() };
   },
 
@@ -78,8 +97,7 @@ export const authService = {
       console.log("Google OAuth sign-in initiated");
 
       const credential = await signInWithPopup(auth, provider);
-      const res = await fetch(`/api/get_user.php?uid=${credential.user.uid}`);
-      let userDocData = res.ok ? await res.json() : null;
+      let userDocData = await getUserProfile(credential.user.uid);
       if (!userDocData) {
         userDocData = {
           uid: credential.user.uid,
@@ -90,11 +108,7 @@ export const authService = {
           createdAt: new Date().toISOString(),
           role: "customer",
         };
-        await fetch("/api/create_user.php", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(userDocData),
-        });
+        await saveUserProfile(mapUser(credential.user, userDocData));
       }
       const user = mapUser(credential.user, userDocData);
       return { user, token: await credential.user.getIdToken() };
@@ -111,10 +125,10 @@ export const authService = {
   },
 
   async getCurrentUser(): Promise<User | null> {
+    await authReady;
     const firebaseUser = auth.currentUser;
     if (!firebaseUser) return null;
-    const res = await fetch(`/api/get_user.php?uid=${firebaseUser.uid}`);
-    const userDocData = res.ok ? await res.json() : null;
+    const userDocData = await getUserProfile(firebaseUser.uid);
     return mapUser(firebaseUser, userDocData);
   },
 };

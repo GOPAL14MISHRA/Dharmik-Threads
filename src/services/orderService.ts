@@ -1,6 +1,15 @@
 import type { Address, CartItem, Order, PaymentMethod } from "@/lib/types";
+import { authReady } from "@/lib/firebase/auth";
+import { db } from "@/lib/firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where, setDoc } from "firebase/firestore";
 
-// Removed redundant local cleanOrder function as backend will handle format
+function generateOrderId() {
+  return `DT${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`;
+}
+
+function generateTrackingNumber() {
+  return `TRK${Math.floor(100000000 + Math.random() * 900000000)}`;
+}
 
 export const orderService = {
   async placeOrder(input: {
@@ -13,33 +22,37 @@ export const orderService = {
     tax: number;
     total: number;
   }): Promise<Order> {
-    const res = await fetch("/api/place_order.php", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.error || "Failed to place order");
-    }
-    return await res.json();
+    await authReady;
+    const orderId = generateOrderId();
+    const placedAt = new Date().toISOString();
+    const order: Order = {
+      ...input,
+      orderId,
+      paymentStatus: input.paymentMethod === "cod" ? "cod_pending" : "pending",
+      orderStatus: "placed",
+      trackingNumber: generateTrackingNumber(),
+      createdAt: placedAt,
+      placedAt,
+    };
+    await setDoc(doc(db, "orders", orderId), order);
+    return order;
   },
 
   async getOrders(userId: string) {
-    const res = await fetch(`/api/get_orders.php?uid=${userId}`);
-    if (!res.ok) return [];
-    return await res.json();
+    await authReady;
+    const snapshot = await getDocs(query(collection(db, "orders"), where("userId", "==", userId)));
+    return snapshot.docs.map((item) => item.data() as Order).sort((a, b) => b.placedAt.localeCompare(a.placedAt));
   },
 
   async getOrder(id: string) {
-    const res = await fetch(`/api/get_order.php?id=${id}`);
-    if (!res.ok) return null;
-    return await res.json();
+    await authReady;
+    const snapshot = await getDoc(doc(db, "orders", id));
+    return snapshot.exists() ? snapshot.data() as Order : null;
   },
 
   async trackOrder(id: string) {
-    const res = await fetch(`/api/track_order.php?id=${id}`);
-    if (!res.ok) return null;
-    return await res.json();
+    await authReady;
+    const snapshot = await getDoc(doc(db, "orders", id));
+    return snapshot.exists() ? snapshot.data() as Order : null;
   },
 };
