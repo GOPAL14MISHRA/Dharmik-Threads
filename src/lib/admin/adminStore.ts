@@ -9,6 +9,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/firestore";
+import { auth, authReady } from "@/lib/firebase/auth";
 import { toast } from "sonner";
 import { notificationService } from "@/services/notificationService";
 
@@ -118,6 +119,9 @@ function rebuildCustomers() {
 
 // Setup live observers on client
 if (typeof window !== "undefined") {
+  authReady.then(() => {
+    if (!auth.currentUser) return;
+
   // Listen to Products
   onSnapshot(collection(db, "products"), (snapshot) => {
     const products = snapshot.docs.map((docSnapshot) => {
@@ -126,6 +130,9 @@ if (typeof window !== "undefined") {
     });
     state = { ...state, products };
     notify();
+  }, (error) => {
+    console.error("Admin products listener failed:", error);
+    toast.error(`Products database error: ${error.message}`);
   });
 
   // Listen to Orders
@@ -154,6 +161,9 @@ if (typeof window !== "undefined") {
     }).sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime());
     state = { ...state, orders };
     rebuildCustomers();
+  }, (error) => {
+    console.error("Admin orders listener failed:", error);
+    toast.error(`Orders database error: ${error.message}`);
   });
 
   // Listen to Coupons
@@ -172,6 +182,9 @@ if (typeof window !== "undefined") {
     });
     state = { ...state, coupons };
     notify();
+  }, (error) => {
+    console.error("Admin coupons listener failed:", error);
+    toast.error(`Coupons database error: ${error.message}`);
   });
 
   // Listen to Registered Users
@@ -181,6 +194,9 @@ if (typeof window !== "undefined") {
       ...docSnapshot.data(),
     }));
     rebuildCustomers();
+  }, (error) => {
+    console.error("Admin users listener failed:", error);
+    toast.error(`Users database error: ${error.message}`);
   });
 
   // Listen to Newsletter Subscribers
@@ -191,6 +207,10 @@ if (typeof window !== "undefined") {
     }));
     state = { ...state, subscribers };
     notify();
+  }, (error) => {
+    console.error("Admin newsletter listener failed:", error);
+    toast.error(`Newsletter database error: ${error.message}`);
+  });
   });
 }
 

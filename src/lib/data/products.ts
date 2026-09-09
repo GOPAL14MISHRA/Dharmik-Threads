@@ -310,6 +310,86 @@ export const products: Product[] = [
     reviews: [baseReview(2, "Elevated basic", "Wear it everywhere.")],
     createdAt: "2026-04-15",
   },
+
+  {
+    id: "p9",
+    slug: "shakti-lotus-tee",
+    title: "Shakti Lotus Graphic Tee",
+    description:
+      "Soft 220 GSM cotton tee with a hand-drawn lotus and Shakti sun graphic. Relaxed fit with a clean everyday finish.",
+    category: "tshirts",
+    collection: "durga",
+    brand: "DharmikThreads",
+    variants: [
+      {
+        variantId: "p9-ivory",
+        color: { name: "Ivory", hex: "#F8F5F0" },
+        images: [hero2, hanuman, shiva],
+        sizes: [
+          { size: "S", price: 1399, stock: 24, sku: "SLTEE-IVY-S" },
+          { size: "M", price: 1399, stock: 28, sku: "SLTEE-IVY-M" },
+          { size: "L", price: 1399, stock: 20, sku: "SLTEE-IVY-L" },
+          { size: "XL", price: 1399, stock: 10, sku: "SLTEE-IVY-XL" },
+        ],
+        isRealColor: true,
+      },
+      {
+        variantId: "p9-black",
+        color: { name: "Matte Black", hex: "#111111" },
+        images: [shivaBlack, hero1, hanuman],
+        sizes: [
+          { size: "S", price: 1399, stock: 16, sku: "SLTEE-BLK-S" },
+          { size: "M", price: 1399, stock: 18, sku: "SLTEE-BLK-M" },
+          { size: "L", price: 1399, stock: 12, sku: "SLTEE-BLK-L" },
+          { size: "XL", price: 1399, stock: 6, sku: "SLTEE-BLK-XL" },
+        ],
+        isRealColor: true,
+      },
+    ],
+    rating: 4.8,
+    reviewCount: 37,
+    reviews: [baseReview(5, "Easy to wear", "The print is subtle and the fabric feels substantial.")],
+    isNew: true,
+    tags: ["cotton", "graphic"],
+    createdAt: "2026-04-20",
+  },
+
+  {
+    id: "p10",
+    slug: "karm-yog-script-cap",
+    title: "Karm Yog Script Cap",
+    description:
+      "Washed cotton cap embroidered with the Karm Yog mantra. Adjustable brass buckle and a softly curved brim.",
+    category: "caps",
+    collection: "bhagavad-gita",
+    brand: "DharmikThreads",
+    variants: [
+      {
+        variantId: "p10-olive",
+        color: { name: "Olive", hex: "#59634A" },
+        images: [cap, hero2, shiva],
+        sizes: [
+          { size: "One Size", price: 999, stock: 42, sku: "KYCAP-OLV-OS" },
+        ],
+        isRealColor: true,
+      },
+      {
+        variantId: "p10-black",
+        color: { name: "Matte Black", hex: "#111111" },
+        images: [cap, hero1, ram],
+        sizes: [
+          { size: "One Size", price: 999, stock: 36, sku: "KYCAP-BLK-OS" },
+        ],
+        isRealColor: true,
+      },
+    ],
+    rating: 4.6,
+    reviewCount: 19,
+    reviews: [baseReview(6, "Great daily cap", "The embroidery is neat and the strap is easy to adjust.")],
+    isNew: true,
+    tags: ["embroidered", "everyday"],
+    createdAt: "2026-04-22",
+  },
 ];
 
 export const collections = [

@@ -1,0 +1,41 @@
+{
+    "DT88675648906": {
+        "orderId": "DT88675648906",
+        "userId": "guest-1788675648020",
+        "items": [
+            {
+                "productId": "p9",
+                "variantId": "p9-ivory",
+                "slug": "shakti-lotus-tee",
+                "title": "Shakti Lotus Graphic Tee",
+                "image": "\/src\/assets\/hero-2.jpg",
+                "price": 1399,
+                "size": "M",
+                "color": "Ivory",
+                "sku": "SLTEE-IVY-M",
+                "quantity": 1
+            }
+        ],
+        "shippingAddress": {
+            "id": "new",
+            "fullName": "gopal mishra",
+            "line1": "klnlk",
+            "line2": "lkn",
+            "city": "kjn",
+            "state": "hkbjn",
+            "pincode": "44858",
+            "phone": "6441891786",
+            "email": "mishragopal532a20@gmail.com"
+        },
+        "paymentMethod": "cod",
+        "paymentStatus": "cod_pending",
+        "orderStatus": "placed",
+        "trackingNumber": "TRK279899387",
+        "subtotal": 1399,
+        "discount": 0,
+        "tax": 0,
+        "total": 1498,
+        "createdAt": "2026-09-06T06:20:48+00:00",
+        "placedAt": "2026-09-06T06:20:48+00:00"
+    }
+}

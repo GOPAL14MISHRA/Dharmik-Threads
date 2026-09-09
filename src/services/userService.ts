@@ -1,26 +1,25 @@
-import { auth } from "@/lib/firebase/auth";
+import { auth, authReady } from "@/lib/firebase/auth";
+import { db } from "@/lib/firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import type { Address, User } from "@/lib/types";
 import { notificationService } from "./notificationService";
 
 export const userService = {
   async updateProfile(patch: Partial<User>) {
+    await authReady;
     const currentUser = auth.currentUser;
     if (!currentUser) throw new Error("Not authenticated");
-    await fetch("/api/update_user.php", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid: currentUser.uid, patch }),
-    });
+    await updateDoc(doc(db, "users", currentUser.uid), patch);
     return { ok: true, patch };
   },
   async addAddress(addr: Address) {
+    await authReady;
     const currentUser = auth.currentUser;
     if (!currentUser) throw new Error("Not authenticated");
-    await fetch("/api/add_address.php", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid: currentUser.uid, address: addr }),
-    });
+    const userRef = doc(db, "users", currentUser.uid);
+    const snapshot = await getDoc(userRef);
+    const addresses = snapshot.exists() ? ((snapshot.data().addresses ?? []) as Address[]) : [];
+    await updateDoc(userRef, { addresses: [...addresses, addr] });
     return { ok: true, addr };
   },
   async subscribeNewsletter(email: string) {
